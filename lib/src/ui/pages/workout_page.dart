@@ -4,13 +4,14 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../models/session_entry.dart';
 import '../../models/workout_session.dart';
 import '../../models/exercise.dart';
 import '../../providers/week_providers.dart';
 import '../../providers/exercise_provider.dart';
-import '../../providers/session_provider.dart';  // содержит sessionRepoProvider и cloudSessionRepoProvider
+import '../../providers/session_provider.dart';
 import '../../utils/id_utils.dart';
 
 class WorkoutPage extends ConsumerStatefulWidget {
@@ -41,7 +42,6 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
     if (_inited) return;
     _inited = true;
 
-    // 1) Если пришли с аргументом — редактируем
     final args =
         ModalRoute.of(context)?.settings.arguments as WorkoutSession?;
     if (args != null) {
@@ -54,10 +54,10 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
       return;
     }
 
-    // 2) Если есть черновик — грузим
     final prefs = await SharedPreferences.getInstance();
     if (prefs.containsKey(_draftKey)) {
-      final map = jsonDecode(prefs.getString(_draftKey)!) as Map<String, dynamic>;
+      final map =
+          jsonDecode(prefs.getString(_draftKey)!) as Map<String, dynamic>;
       _isRest = map['isRest'] as bool;
       _restCtrl.text = map['comment'] as String;
       _entries = (map['entries'] as List)
@@ -68,7 +68,6 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
       return;
     }
 
-    // 3) Иначе — подтягиваем из плана на текущую неделю
     final now = DateTime.now();
     final monday = DateTime(now.year, now.month, now.day)
         .subtract(Duration(days: now.weekday - 1));
@@ -165,35 +164,33 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
         floatingActionButton: FloatingActionButton(
           child: const Icon(Icons.check),
           onPressed: () async {
-            // оборачиваем всё в try/catch
             try {
               final local = ref.read(sessionRepoProvider);
-              final cloud = ref.read(cloudSessionRepoProvider);
-
+              // 1. Всегда сохраняем локально
               final sess = WorkoutSession(
                 id: _editing?.id,
                 date: DateTime.now(),
                 comment: _isRest ? _restCtrl.text : null,
                 entries: _entries,
               );
-
-              // 1) сохраняем локально
               if (_isEditing) {
                 await local.update(sess);
               } else {
                 await local.create(sess);
               }
-              // 2) пытаемся сохранить в облако
-              try {
+
+              // 2. Если залогинен — сохраняем в облако
+              final user = FirebaseAuth.instance.currentUser;
+              if (user != null) {
+                final cloud = ref.read(cloudSessionRepoProvider);
                 if (_isEditing) {
                   await cloud.update(sess);
                 } else {
                   await cloud.create(sess);
                 }
-              } catch (_) {
-                // облако могло не работать — игнорируем
               }
-              // 3) удаляем черновик
+
+              // 3. Очищаем черновик
               final prefs = await SharedPreferences.getInstance();
               await prefs.remove(_draftKey);
 
@@ -279,28 +276,28 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
                               const Text('Повторы:'),
                               IconButton(
                                 icon: const Icon(Icons.remove),
-                                onPressed: () =>
-                                    setState(() => e.reps = (e.reps ?? 0) - 1),
+                                onPressed: () => setState(() =>
+                                    e.reps = (e.reps ?? 0) - 1),
                               ),
                               Text('${e.reps ?? 0}'),
                               IconButton(
                                 icon: const Icon(Icons.add),
-                                onPressed: () =>
-                                    setState(() => e.reps = (e.reps ?? 0) + 1),
+                                onPressed: () => setState(() =>
+                                    e.reps = (e.reps ?? 0) + 1),
                               ),
                             ]),
                             Row(children: [
                               const Text('Подходы:'),
                               IconButton(
                                 icon: const Icon(Icons.remove),
-                                onPressed: () =>
-                                    setState(() => e.sets = (e.sets ?? 0) - 1),
+                                onPressed: () => setState(() =>
+                                    e.sets = (e.sets ?? 0) - 1),
                               ),
                               Text('${e.sets ?? 0}'),
                               IconButton(
                                 icon: const Icon(Icons.add),
-                                onPressed: () =>
-                                    setState(() => e.sets = (e.sets ?? 0) + 1),
+                                onPressed: () => setState(() =>
+                                    e.sets = (e.sets ?? 0) + 1),
                               ),
                             ]),
                             TextField(
