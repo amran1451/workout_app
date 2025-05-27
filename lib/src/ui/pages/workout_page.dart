@@ -41,10 +41,10 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
     if (_inited) return;
     _inited = true;
 
+    // Если идём из «Редактировать»
     final args =
         ModalRoute.of(context)?.settings.arguments as WorkoutSession?;
     if (args != null) {
-      // Редактируем существующую сессию
       _isEditing = true;
       _editing = args;
       _entries = List.from(args.entries);
@@ -54,9 +54,9 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
       return;
     }
 
+    // Если есть черновик — грузим его
     final prefs = await SharedPreferences.getInstance();
     if (prefs.containsKey(_draftKey)) {
-      // Загружаем черновик
       final m = jsonDecode(prefs.getString(_draftKey)!) as Map<String, dynamic>;
       _isRest = m['isRest'] as bool;
       _restCtrl.text = m['comment'] as String;
@@ -68,7 +68,7 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
       return;
     }
 
-    // Восстановление из плана на текущую неделю
+    // Иначе — подтягиваем из плана на текущую неделю
     final now = DateTime.now();
     final monday = DateTime(now.year, now.month, now.day)
         .subtract(Duration(days: now.weekday - 1));
@@ -84,8 +84,7 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
     _entries = todays.map((a) {
       final ex = exercises.firstWhere(
         (e) => e.id == a.exerciseId,
-        orElse: () =>
-            Exercise(id: a.exerciseId, name: 'Неизвестно'),
+        orElse: () => Exercise(id: a.exerciseId, name: 'Неизвестно'),
       );
       return SessionEntry(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -104,8 +103,8 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
 
   Future<void> _saveDraft() async {
     if (_isEditing) return;
-    final p = await SharedPreferences.getInstance();
-    await p.setString(_draftKey, jsonEncode({
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_draftKey, jsonEncode({
       'isRest': _isRest,
       'comment': _restCtrl.text,
       'entries':
@@ -129,7 +128,7 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
     final sel = await showModalBottomSheet<int>(
       context: context,
       builder: (_) {
-        final list = ref.read(exerciseListProvider);
+        final list = ref.watch(exerciseListProvider);
         return ListView.separated(
           separatorBuilder: (_, __) => const Divider(),
           itemCount: list.length,
@@ -155,135 +154,160 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
   Widget build(BuildContext context) {
     final exercises = ref.watch(exerciseListProvider);
 
-    return Scaffold(
-      appBar:
-          AppBar(title: Text(_isEditing ? 'Редактировать' : 'Новая тренировка')),
-      floatingActionButton: FloatingActionButton(
-        child: const Icon(Icons.check),
-        onPressed: () async {
-          final local = ref.read(sessionRepoProvider);
-          final cloud = ref.read(cloudSessionRepoProvider);
-          final sess = WorkoutSession(
-            id: _editing?.id,
-            date: DateTime.now(),
-            comment: _isRest ? _restCtrl.text : null,
-            entries: _entries,
-          );
-          if (_isEditing) {
-            await local.update(sess);
-            await cloud.update(sess);
-          } else {
-            await local.create(sess);
-            await cloud.create(sess);
-          }
-          SharedPreferences.getInstance().then((p) => p.remove(_draftKey));
-          Navigator.pop(context);
-        },
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: _isRest
-            ? Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  ElevatedButton(
-                    onPressed: _addEntry,
-                    child: const Text('Добавить запись'),
-                  ),
-                  const SizedBox(height: 20),
-                  TextField(
-                    controller: _restCtrl,
-                    decoration:
-                        const InputDecoration(labelText: 'Комментарий к отдыху'),
-                    maxLines: 3,
-                  ),
-                ],
-              )
-            : ListView.builder(
-                itemCount: _entries.length,
-                itemBuilder: (ctx, i) {
-                  final e = _entries[i];
-                  final ex = exercises.firstWhere(
-                    (x) => x.id == e.exerciseId,
-                    orElse: () => Exercise(id: e.exerciseId, name: 'Неизвестно'),
-                  );
-                  return Card(
-                    margin: const EdgeInsets.symmetric(vertical: 6),
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(children: [
-                            Checkbox(
-                              value: e.completed,
-                              onChanged: (v) =>
-                                  setState(() => e.completed = v ?? false),
-                            ),
-                            Text(ex.name, style: const TextStyle(fontSize: 16)),
-                            const Spacer(),
-                            IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.red),
-                              onPressed: () => setState(() {
-                                _entries.removeAt(i);
-                                if (_entries.isEmpty) _isRest = true;
-                              }),
-                            ),
-                          ]),
-                          Row(children: [
-                            const Text('Вес:'),
-                            IconButton(
-                              icon: const Icon(Icons.remove),
-                              onPressed: () =>
-                                  setState(() => e.weight = (e.weight ?? 0) - 0.5),
-                            ),
-                            Text('${e.weight ?? 0}'),
-                            IconButton(
-                              icon: const Icon(Icons.add),
-                              onPressed: () =>
-                                  setState(() => e.weight = (e.weight ?? 0) + 0.5),
-                            ),
-                          ]),
-                          Row(children: [
-                            const Text('Повторы:'),
-                            IconButton(
-                              icon: const Icon(Icons.remove),
-                              onPressed: () =>
-                                  setState(() => e.reps = (e.reps ?? 0) - 1),
-                            ),
-                            Text('${e.reps ?? 0}'),
-                            IconButton(
-                              icon: const Icon(Icons.add),
-                              onPressed: () =>
-                                  setState(() => e.reps = (e.reps ?? 0) + 1),
-                            ),
-                          ]),
-                          Row(children: [
-                            const Text('Подходы:'),
-                            IconButton(
-                              icon: const Icon(Icons.remove),
-                              onPressed: () =>
-                                  setState(() => e.sets = (e.sets ?? 0) - 1),
-                            ),
-                            Text('${e.sets ?? 0}'),
-                            IconButton(
-                              icon: const Icon(Icons.add),
-                              onPressed: () =>
-                                  setState(() => e.sets = (e.sets ?? 0) + 1),
-                            ),
-                          ]),
-                          TextField(
-                            controller: TextEditingController(text: e.comment),
-                            decoration:
-                                const InputDecoration(labelText: 'Комментарий'),
-                            onChanged: (v) => e.comment = v,
-                          ),
-                        ],
-                      ),
+    return WillPopScope(
+      onWillPop: () async {
+        await _saveDraft();
+        return true;
+      },
+      child: Scaffold(
+        appBar: AppBar(
+            title: Text(_isEditing ? 'Редактировать' : 'Новая тренировка')),
+        floatingActionButton: FloatingActionButton(
+          child: const Icon(Icons.check),
+          onPressed: () async {
+            final local = ref.read(sessionRepoProvider);
+            final cloud = ref.read(cloudSessionRepoProvider);
+
+            final sess = WorkoutSession(
+              id: _editing?.id,
+              date: DateTime.now(),
+              comment: _isRest ? _restCtrl.text : null,
+              entries: _entries,
+            );
+
+            try {
+              if (_isEditing) {
+                await local.update(sess);
+                await cloud.update(sess);
+              } else {
+                await local.create(sess);
+                await cloud.create(sess);
+              }
+
+              // очищаем черновик
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.remove(_draftKey);
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Сохранено')),
+              );
+              Navigator.pop(context);
+            } catch (e) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Ошибка при сохранении: $e')),
+              );
+            }
+          },
+        ),
+        body: Padding(
+          padding: const EdgeInsets.all(16),
+          child: _isRest
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ElevatedButton(
+                      onPressed: _addEntry,
+                      child: const Text('Добавить запись'),
                     ),
-                  );
-                },
-              ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _restCtrl,
+                      decoration: const InputDecoration(
+                          labelText: 'Комментарий к отдыху'),
+                      maxLines: 3,
+                    ),
+                  ],
+                )
+              : ListView.builder(
+                  itemCount: _entries.length,
+                  itemBuilder: (ctx, i) {
+                    final e = _entries[i];
+                    final ex = exercises.firstWhere(
+                      (x) => x.id == e.exerciseId,
+                      orElse: () =>
+                          Exercise(id: e.exerciseId, name: 'Неизвестно'),
+                    );
+                    return Card(
+                      margin: const EdgeInsets.symmetric(vertical: 6),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(children: [
+                              Checkbox(
+                                value: e.completed,
+                                onChanged: (v) => setState(
+                                    () => e.completed = v ?? false),
+                              ),
+                              Text(ex.name,
+                                  style: const TextStyle(fontSize: 16)),
+                              const Spacer(),
+                              IconButton(
+                                icon: const Icon(Icons.delete,
+                                    color: Colors.red),
+                                onPressed: () => setState(() {
+                                  _entries.removeAt(i);
+                                  if (_entries.isEmpty) _isRest = true;
+                                }),
+                              ),
+                            ]),
+                            Row(children: [
+                              const Text('Вес:'),
+                              IconButton(
+                                icon: const Icon(Icons.remove),
+                                onPressed: () => setState(() =>
+                                    e.weight = (e.weight ?? 0) - 0.5),
+                              ),
+                              Text('${e.weight ?? 0}'),
+                              IconButton(
+                                icon: const Icon(Icons.add),
+                                onPressed: () => setState(() =>
+                                    e.weight = (e.weight ?? 0) + 0.5),
+                              ),
+                            ]),
+                            Row(children: [
+                              const Text('Повторы:'),
+                              IconButton(
+                                icon: const Icon(Icons.remove),
+                                onPressed: () => setState(() =>
+                                    e.reps = (e.reps ?? 0) - 1),
+                              ),
+                              Text('${e.reps ?? 0}'),
+                              IconButton(
+                                icon: const Icon(Icons.add),
+                                onPressed: () => setState(() =>
+                                    e.reps = (e.reps ?? 0) + 1),
+                              ),
+                            ]),
+                            Row(children: [
+                              const Text('Подходы:'),
+                              IconButton(
+                                icon: const Icon(Icons.remove),
+                                onPressed: () => setState(() =>
+                                    e.sets = (e.sets ?? 0) - 1),
+                              ),
+                              Text('${e.sets ?? 0}'),
+                              IconButton(
+                                icon: const Icon(Icons.add),
+                                onPressed: () => setState(() =>
+                                    e.sets = (e.sets ?? 0) + 1),
+                              ),
+                            ]),
+                            TextField(
+                              controller:
+                                  TextEditingController(text: e.comment),
+                              decoration: const InputDecoration(
+                                  labelText: 'Комментарий'),
+                              onChanged: (v) => e.comment = v,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ),
       ),
     );
   }
