@@ -3,11 +3,11 @@ class SessionEntry {
   /// В Firestore — это ID документа в саб-коллекции entries
   final String id;
   final int exerciseId;
-  final bool completed;
-  final String? comment;
-  final double? weight;
-  final int? reps;
-  final int? sets;
+  bool completed;
+  String? comment;
+  double? weight;
+  int? reps;
+  int? sets;
 
   SessionEntry({
     required this.id,
