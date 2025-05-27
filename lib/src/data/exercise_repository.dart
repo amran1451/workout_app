@@ -1,7 +1,7 @@
 // lib/src/data/exercise_repository.dart
 
 import 'package:sqflite/sqflite.dart';
-import '../local/db_service.dart';
+import 'local/db_service.dart';
 import '../models/exercise.dart';
 import 'cloud_exercise_repository.dart';
 
