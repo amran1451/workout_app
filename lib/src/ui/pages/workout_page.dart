@@ -1,4 +1,5 @@
 // lib/src/ui/pages/workout_page.dart
+
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,11 +8,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/session_entry.dart';
 import '../../models/workout_session.dart';
 import '../../providers/app_providers.dart';
-import '../../providers/exercise_provider.dart';
 import '../../utils/id_utils.dart';
 
 class WorkoutPage extends ConsumerStatefulWidget {
   const WorkoutPage({Key? key}) : super(key: key);
+
   @override
   ConsumerState<WorkoutPage> createState() => _WorkoutPageState();
 }
@@ -62,7 +63,7 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
       return;
     }
 
-    // По умолчанию — пустая сессия
+    // По умолчанию берем пустой список
     setState(() {});
   }
 
@@ -84,7 +85,6 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
   }
 
   Future<void> _addEntry() async {
-    // Показываем список упражнений из provider
     final sel = await showModalBottomSheet<int>(
       context: context,
       builder: (_) {
@@ -112,40 +112,34 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(_isEditing ? 'Редактировать' : 'Новая')),
+      appBar:
+          AppBar(title: Text(_isEditing ? 'Редактировать' : 'Новая тренировка')),
       floatingActionButton: FloatingActionButton(
         child: const Icon(Icons.check),
         onPressed: () async {
-          try {
-            // 1) Сохраняем в оба репозитория
-            final localRepo = ref.read(sessionRepoProvider);
-            final cloudRepo = ref.read(cloudSessionRepoProvider);
+          final local = ref.read(sessionRepoProvider);
+          final cloud = ref.read(cloudSessionRepoProvider);
 
-            final sess = WorkoutSession(
-              id: _editing?.id,
-              date: DateTime.now(),
-              comment: _isRest ? _restCtrl.text : null,
-              entries: _entries,
-            );
+          final sess = WorkoutSession(
+            id: _editing?.id,
+            date: DateTime.now(),
+            comment: _isRest ? _restCtrl.text : null,
+            entries: _entries,
+          );
 
-            if (_isEditing) {
-              await localRepo.update(sess);
-              await cloudRepo.update(sess);
-            } else {
-              await localRepo.create(sess);
-              await cloudRepo.create(sess);
-            }
-
-            // 2) чистим черновик
-            await SharedPreferences.getInstance()
-                .then((p) => p.remove(_draftKey));
-
-            Navigator.pop(context);
-          } catch (e, st) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Ошибка при сохранении: $e')),
-            );
+          if (_isEditing) {
+            await local.update(sess);
+            await cloud.update(sess);
+          } else {
+            await local.create(sess);
+            await cloud.create(sess);
           }
+
+          // сбросить черновик
+          SharedPreferences.getInstance()
+              .then((p) => p.remove(_draftKey));
+
+          Navigator.pop(context);
         },
       ),
       body: Padding(
@@ -153,7 +147,7 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
         child: Column(
           children: [
             ElevatedButton(
-                onPressed: _addEntry, child: const Text('Добавить упражнение')),
+                onPressed: _addEntry, child: const Text('Добавить запись')),
             if (_isRest)
               TextField(
                 controller: _restCtrl,
@@ -166,7 +160,7 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
                 child: ListView.builder(
                   itemCount: _entries.length,
                   itemBuilder: (_, i) => ListTile(
-                    title: Text('Упражнение ${_entries[i].exerciseId}'),
+                    title: Text('Упр. ${_entries[i].exerciseId}'),
                     subtitle: Text(
                         'Вес: ${_entries[i].weight ?? '-'}  Повт: ${_entries[i].reps ?? '-'}'),
                   ),
