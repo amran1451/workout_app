@@ -164,41 +164,44 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
         floatingActionButton: FloatingActionButton(
           child: const Icon(Icons.check),
           onPressed: () async {
-            try {
-              final local = ref.read(sessionRepoProvider);
-              // 1. Всегда сохраняем локально
-              final sess = WorkoutSession(
-                id: _editing?.id,
-                date: DateTime.now(),
-                comment: _isRest ? _restCtrl.text : null,
-                entries: _entries,
-              );
-              if (_isEditing) {
-                await local.update(sess);
-              } else {
-                await local.create(sess);
-              }
+  final local = ref.read(sessionRepoProvider);
 
-              // 2. Если залогинен — сохраняем в облако
-              final user = FirebaseAuth.instance.currentUser;
-              if (user != null) {
-                final cloud = ref.read(cloudSessionRepoProvider);
-                if (_isEditing) {
-                  await cloud.update(sess);
-                } else {
-                  await cloud.create(sess);
-                }
-              }
+  // 1️⃣ локально сохранили
+  WorkoutSession sess;
+  if (_isEditing) {
+    sess = WorkoutSession(
+      id: _editing!.id,
+      date: DateTime.now(),
+      comment: _isRest ? _restCtrl.text : null,
+      entries: _entries,
+    );
+    await local.update(sess);
+  } else {
+    sess = await local.create(WorkoutSession(
+      date: DateTime.now(),
+      comment: _isRest ? _restCtrl.text : null,
+      entries: _entries,
+    ));
+  }
 
-              // 3. Очищаем черновик
-              final prefs = await SharedPreferences.getInstance();
-              await prefs.remove(_draftKey);
+  // 2️⃣ пробуем сразу синхронизировать только эту сессию
+  final user = FirebaseAuth.instance.currentUser;
+  if (user != null) {
+    final cloud = ref.read(cloudSessionRepoProvider);
+    final cloudS = _isEditing
+        ? await cloud.update(sess).then((_) => sess)
+        : await cloud.create(sess);
+    // 3️⃣ помечаем локально
+    await local.markSynced(sess.id!, cloudS.id);
+  }
 
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Сохранено')),
-              );
-              Navigator.pop(context);
-            } catch (e) {
+  // 4️⃣ очищаем черновик, уведомляем
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.remove(_draftKey);
+  ScaffoldMessenger.of(context)
+      .showSnackBar(const SnackBar(content: Text('Сохранено')));
+  Navigator.pop(context);
+}, catch (e) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text('Ошибка при сохранении: $e')),
               );

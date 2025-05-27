@@ -12,6 +12,13 @@ import 'firebase_options.dart';
 final RouteObserver<ModalRoute<void>> routeObserver =
     RouteObserver<ModalRoute<void>>();
 
+final user = FirebaseAuth.instance.currentUser;
+if (user != null) {
+  final local = ref.read(sessionRepoProvider);
+  final cloud = ref.read(cloudSessionRepoProvider);
+  local.syncPending(cloud);
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
