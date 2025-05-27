@@ -1,3 +1,5 @@
+// lib/src/ui/pages/plan_form_page.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -17,25 +19,29 @@ class PlanFormPage extends ConsumerStatefulWidget {
 
 class _PlanFormPageState extends ConsumerState<PlanFormPage> {
   late DateTime _monday;
-  List<WeekAssignment>? _editable;
+  List<WeekAssignment> _editable = [];
   bool _loading = true;
 
   @override
   void initState() {
     super.initState();
+    // получаем текущий понедельник из провайдера
     _monday = ref.read(currentWeekStartProvider);
     _loadAssignments();
   }
 
   Future<void> _loadAssignments() async {
     setState(() => _loading = true);
+    // обновляем понедельник в провайдере, чтобы другие виджеты знали о смене недели
     ref.read(currentWeekStartProvider.notifier).state = _monday;
+
     final plan = await ref.read(weekPlanRepoProvider).getOrCreateForDate(_monday);
     final planId = toIntId(plan.id);
     final assignments =
         await ref.read(weekAssignmentRepoProvider).getByWeekPlan(planId);
+
     setState(() {
-      _editable = assignments.toList();
+      _editable = assignments;
       _loading = false;
     });
   }
@@ -68,9 +74,9 @@ class _PlanFormPageState extends ConsumerState<PlanFormPage> {
     if (selected == null) return;
     final ex = exercises.firstWhere((e) => e.id == selected);
     setState(() {
-      _editable!.add(WeekAssignment(
+      _editable.add(WeekAssignment(
         id: 0,
-        weekPlanId: 0,
+        weekPlanId: 0, // будет установлено в createAll
         exerciseId: ex.id!,
         dayOfWeek: day,
         defaultWeight: ex.weight,
@@ -85,12 +91,13 @@ class _PlanFormPageState extends ConsumerState<PlanFormPage> {
     final planId = toIntId(plan.id);
     await ref
         .read(weekAssignmentRepoProvider)
-        .saveForWeekPlan(planId, _editable!);
+        .createAll(planId, _editable);
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
           'План за ${DateFormat('dd.MM.yyyy').format(_monday)} – '
-          '${DateFormat('dd.MM.yyyy').format(_monday.add(Duration(days: 6)))} сохранён',
+          '${DateFormat('dd.MM.yyyy').format(_monday.add(const Duration(days: 6)))} сохранён',
         ),
       ),
     );
@@ -100,6 +107,7 @@ class _PlanFormPageState extends ConsumerState<PlanFormPage> {
   Widget build(BuildContext context) {
     final exercises = ref.watch(exerciseListProvider);
 
+    // экран загрузки
     if (_loading) {
       return Scaffold(
         appBar: AppBar(title: const Text('План на неделю')),
@@ -107,6 +115,7 @@ class _PlanFormPageState extends ConsumerState<PlanFormPage> {
       );
     }
 
+    // основной экран
     return Scaffold(
       appBar: AppBar(
         title: Column(
@@ -115,15 +124,24 @@ class _PlanFormPageState extends ConsumerState<PlanFormPage> {
             const Text('План тренировки'),
             Text(
               '${DateFormat('dd.MM.yyyy').format(_monday)} – '
-              '${DateFormat('dd.MM.yyyy').format(_monday.add(Duration(days: 6)))}',
+              '${DateFormat('dd.MM.yyyy').format(_monday.add(const Duration(days: 6)))}',
               style: const TextStyle(fontSize: 14),
             ),
           ],
         ),
         actions: [
-          IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => _changeWeek(-1)),
-          IconButton(icon: const Icon(Icons.arrow_forward), onPressed: () => _changeWeek(1)),
-          IconButton(icon: const Icon(Icons.save), onPressed: _savePlan),
+          IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => _changeWeek(-1),
+          ),
+          IconButton(
+            icon: const Icon(Icons.arrow_forward),
+            onPressed: () => _changeWeek(1),
+          ),
+          IconButton(
+            icon: const Icon(Icons.save),
+            onPressed: _savePlan,
+          ),
         ],
       ),
       body: ListView.builder(
@@ -131,16 +149,21 @@ class _PlanFormPageState extends ConsumerState<PlanFormPage> {
         itemBuilder: (ctx, i) {
           final day = i + 1;
           final date = _monday.add(Duration(days: i));
-          final entries = _editable!.where((a) => a.dayOfWeek == day).toList();
+          final entries =
+              _editable.where((a) => a.dayOfWeek == day).toList();
+
           return ExpansionTile(
             title: Text(
-              '${DateFormat('EEEE', 'ru').format(date)}, ${DateFormat('dd.MM').format(date)}',
+              '${DateFormat('EEEE', 'ru').format(date)}, '
+              '${DateFormat('dd.MM').format(date)}',
             ),
             children: [
+              // существующие задания
               ...entries.map((a) {
                 final ex = exercises.firstWhere(
                   (e) => e.id == a.exerciseId,
-                  orElse: () => Exercise(id: a.exerciseId, name: 'Неизвестно'),
+                  orElse: () =>
+                      Exercise(id: a.exerciseId, name: 'Неизвестно'),
                 );
                 return ListTile(
                   title: Text(ex.name),
@@ -148,38 +171,50 @@ class _PlanFormPageState extends ConsumerState<PlanFormPage> {
                     children: [
                       Expanded(
                         child: TextFormField(
-                          initialValue: a.defaultWeight?.toString() ?? '',
-                          decoration: const InputDecoration(labelText: 'Вес'),
+                          initialValue:
+                              a.defaultWeight?.toString() ?? '',
+                          decoration:
+                              const InputDecoration(labelText: 'Вес'),
                           keyboardType: TextInputType.number,
-                          onChanged: (v) => a.defaultWeight = double.tryParse(v),
+                          onChanged: (v) =>
+                              a.defaultWeight = double.tryParse(v),
                         ),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: TextFormField(
-                          initialValue: a.defaultReps?.toString() ?? '',
-                          decoration: const InputDecoration(labelText: 'Повт'),
+                          initialValue:
+                              a.defaultReps?.toString() ?? '',
+                          decoration:
+                              const InputDecoration(labelText: 'Повт'),
                           keyboardType: TextInputType.number,
-                          onChanged: (v) => a.defaultReps = int.tryParse(v),
+                          onChanged: (v) =>
+                              a.defaultReps = int.tryParse(v),
                         ),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: TextFormField(
-                          initialValue: a.defaultSets?.toString() ?? '',
-                          decoration: const InputDecoration(labelText: 'Под'),
+                          initialValue:
+                              a.defaultSets?.toString() ?? '',
+                          decoration:
+                              const InputDecoration(labelText: 'Под'),
                           keyboardType: TextInputType.number,
-                          onChanged: (v) => a.defaultSets = int.tryParse(v),
+                          onChanged: (v) =>
+                              a.defaultSets = int.tryParse(v),
                         ),
                       ),
                     ],
                   ),
                   trailing: IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.redAccent),
-                    onPressed: () => setState(() => _editable!.remove(a)),
+                    icon: const Icon(Icons.delete,
+                        color: Colors.redAccent),
+                    onPressed: () => setState(
+                        () => _editable.remove(a)),
                   ),
                 );
               }),
+              // кнопка добавить
               ListTile(
                 leading: const Icon(Icons.add),
                 title: const Text('Добавить упражнение'),

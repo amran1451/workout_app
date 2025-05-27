@@ -7,7 +7,7 @@ import '../models/week_plan.dart';
 class WeekPlanRepository {
   final DatabaseService dbService = DatabaseService.instance;
 
-  /// Получить или создать запись в week_plans с ключом startDate = monday.millisecondsSinceEpoch
+  /// Получить или создать запись в week_plans по startDate = monday.millisecondsSinceEpoch
   Future<WeekPlan> getOrCreateForDate(DateTime monday) async {
     final db = await dbService.database;
     final key = monday.millisecondsSinceEpoch;
@@ -19,14 +19,17 @@ class WeekPlanRepository {
     if (maps.isNotEmpty) {
       final m = maps.first;
       return WeekPlan(
-        id: m['id'] as int,
-        startDate: DateTime.fromMillisecondsSinceEpoch(m['startDate'] as int),
+        id: (m['id'] as int).toString(),
+        startDate:
+            DateTime.fromMillisecondsSinceEpoch(m['startDate'] as int),
       );
     } else {
-      final id = await db.insert('week_plans', {
-        'startDate': key,
-      });
-      return WeekPlan(id: id, startDate: monday);
+      final idInt =
+          await db.insert('week_plans', {'startDate': key});
+      return WeekPlan(
+        id: idInt.toString(),
+        startDate: monday,
+      );
     }
   }
 }

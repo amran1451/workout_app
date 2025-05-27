@@ -7,7 +7,7 @@ import '../models/week_assignment.dart';
 class WeekAssignmentRepository {
   final DatabaseService dbService = DatabaseService.instance;
 
-  /// Вернуть все задания для локального плана с primary key = weekPlanId
+  /// Вернуть все задания для плана с PK = weekPlanId
   Future<List<WeekAssignment>> getByWeekPlan(int weekPlanId) async {
     final db = await dbService.database;
     final maps = await db.query(
@@ -18,16 +18,17 @@ class WeekAssignmentRepository {
     return maps.map((m) => WeekAssignment.fromMap(m)).toList();
   }
 
-  /// Создать все переданные задания (обычно после getOrCreateForDate)
-  Future<void> createAll(int weekPlanId, List<WeekAssignment> list) async {
+  /// Заменить все задания для данного плана
+  Future<void> createAll(
+      int weekPlanId, List<WeekAssignment> list) async {
     final db = await dbService.database;
-    // Сначала очистить старые
+    // Удалить старые
     await db.delete(
       'week_assignments',
       where: 'weekPlanId = ?',
       whereArgs: [weekPlanId],
     );
-    // Потом вставить новые
+    // Вставить новые
     for (var a in list) {
       await db.insert('week_assignments', {
         'weekPlanId': weekPlanId,
