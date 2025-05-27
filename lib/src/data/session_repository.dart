@@ -40,7 +40,7 @@ class SessionRepository {
     }
   }
 
-  Future<List<WorkoutSession>> getAll() async {
+Future<List<WorkoutSession>> getAll() async {
     final db = await dbService.database;
     final sessionMaps = await db.query('sessions', orderBy: 'date DESC');
     final sessions = <WorkoutSession>[];
@@ -52,15 +52,16 @@ class SessionRepository {
         where: 'session_id = ?',
         whereArgs: [idInt],
       );
+
       final entries = entriesMaps.map((e) {
         return SessionEntry.fromMap({
-          'id': e['id'].toString(),
-          'exerciseId': e['exerciseId'],
-          'completed': e['completed'],
-          'comment': e['comment'],
-          'weight': e['weight'],
-          'reps': e['reps'],
-          'sets': e['sets'],
+          'id': (e['id'] as int).toString(),
+          'exerciseId': e['exercise_id'] as int,
+          'completed': (e['completed'] as int) == 1,
+          'comment': e['comment'] as String?,
+          'weight': (e['weight'] as num?)?.toDouble(),
+          'reps': e['reps'] as int?,
+          'sets': e['sets'] as int?,
         });
       }).toList();
 

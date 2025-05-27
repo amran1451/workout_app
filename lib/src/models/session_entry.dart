@@ -1,6 +1,4 @@
-/// Модель одной записи в сессии
 class SessionEntry {
-  /// В Firestore — это ID документа в саб-коллекции entries
   final String id;
   final int exerciseId;
   bool completed;
@@ -23,7 +21,9 @@ class SessionEntry {
     return SessionEntry(
       id: map['id'].toString(),
       exerciseId: map['exerciseId'] as int,
-      completed: map['completed'] as bool,
+      completed: map['completed'] is int
+          ? (map['completed'] as int) == 1
+          : map['completed'] as bool,
       comment: map['comment'] as String?,
       weight: (map['weight'] as num?)?.toDouble(),
       reps: map['reps'] as int?,
@@ -31,7 +31,7 @@ class SessionEntry {
     );
   }
 
-  /// Для отправки в Firestore (убираем поле `id`, оно будет взято из doc.id)
+  /// Для Firestore
   Map<String, dynamic> toMap() {
     return {
       'exerciseId': exerciseId,
@@ -43,10 +43,16 @@ class SessionEntry {
     };
   }
 
-  /// Для локальной БД SQflite: добавляем session_id
+  /// Для SQLite — ключи snake_case под вашу схему
   Map<String, dynamic> toDbMap(int sessionId) {
-    final m = toMap();
-    m['session_id'] = sessionId;
-    return m;
+    return {
+      'exercise_id': exerciseId,
+      'completed': completed ? 1 : 0,
+      'comment': comment,
+      'weight': weight,
+      'reps': reps,
+      'sets': sets,
+      'session_id': sessionId,
+    };
   }
 }
