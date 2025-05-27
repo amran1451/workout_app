@@ -4,13 +4,12 @@ import 'package:sqflite/sqflite.dart';
 import '../models/workout_session.dart';
 import '../models/session_entry.dart';
 import '../local/db_service.dart';
-import '../data/cloud_session_repository.dart';
+import 'cloud_session_repository.dart';
 
 class SessionRepository {
   final DatabaseService dbService = DatabaseService.instance;
 
-  /// Создаёт новую сессию и её записи в SQLite,
-  /// помечая её как не синхронизированную.
+  /// Создаёт новую сессию и её записи в SQLite (is_synced = 0)
   Future<WorkoutSession> create(WorkoutSession session) async {
     final db = await dbService.database;
     final sid = await db.insert('sessions', {
@@ -30,6 +29,7 @@ class SessionRepository {
     );
   }
 
+  /// Обновляет сессию в SQLite и сбрасывает флаг синка
   Future<void> update(WorkoutSession session) async {
     final db = await dbService.database;
     final id = int.parse(session.id!);
@@ -38,7 +38,6 @@ class SessionRepository {
       {
         'date': session.date.toIso8601String(),
         'comment': session.comment,
-        // при любом апдейте сбрасываем синк-флаг
         'is_synced': 0,
       },
       where: 'id = ?',
@@ -50,24 +49,23 @@ class SessionRepository {
     }
   }
 
+  /// Читает все сессии с их записями
   Future<List<WorkoutSession>> getAll() async {
     final db = await dbService.database;
-    final sessionMaps =
-        await db.query('sessions', orderBy: 'date DESC');
     final sessions = <WorkoutSession>[];
+    final sessionMaps = await db.query('sessions', orderBy: 'date DESC');
 
     for (var m in sessionMaps) {
-      final idInt = m['id'] as int;
+      final sid = m['id'] as int;
       final entriesMaps = await db.query(
         'entries',
         where: 'session_id = ?',
-        whereArgs: [idInt],
+        whereArgs: [sid],
       );
-
       final entries = entriesMaps.map((e) {
         return SessionEntry.fromMap({
-          'id': (e['id'] as int).toString(),
-          'exerciseId': e['exercise_id'] as int,
+          'id': e['id'].toString(),
+          'exerciseId': e['exercise_id'],
           'completed': (e['completed'] as int) == 1,
           'comment': e['comment'] as String?,
           'weight': (e['weight'] as num?)?.toDouble(),
@@ -76,65 +74,63 @@ class SessionRepository {
         });
       }).toList();
 
-      sessions.add(WorkoutSession.fromMap({
-        'id': idInt.toString(),
-        'date': m['date'],
-        'comment': m['comment'],
-      }, entries));
-    }
-    return sessions;
-  }
-
-  /// Возвращает все локальные сессии, ещё не синхронизированные
-  Future<List<WorkoutSession>> getUnsynced() async {
-    final db = await dbService.database;
-    final maps = await db.query(
-      'sessions',
-      where: 'is_synced = ?',
-      whereArgs: [0],
-    );
-    final list = <WorkoutSession>[];
-    for (var m in maps) {
-      final idInt = m['id'] as int;
-      final entriesMaps = await db.query(
-        'entries',
-        where: 'session_id = ?',
-        whereArgs: [idInt],
-      );
-      final entries = entriesMaps.map((e) {
-        return SessionEntry.fromMap({
-          'id': (e['id'] as int).toString(),
-          'exerciseId': e['exercise_id'] as int,
-          'completed': (e['completed'] as int) == 1,
-          'comment': e['comment'] as String?,
-          'weight': (e['weight'] as num?)?.toDouble(),
-          'reps': e['reps'] as int?,
-          'sets': e['sets'] as int?,
-        });
-      }).toList();
-      list.add(WorkoutSession(
-        id: idInt.toString(),
+      sessions.add(WorkoutSession(
+        id: sid.toString(),
         date: DateTime.parse(m['date'] as String),
         comment: m['comment'] as String?,
         entries: entries,
       ));
     }
-    return list;
+    return sessions;
   }
 
-  /// Помечает локальную сессию как синхронизированную и сохраняет cloudId
+  /// Возвращает локальные сессии, ещё не синхронизированные в облако
+  Future<List<WorkoutSession>> getUnsynced() async {
+    final db = await dbService.database;
+    final pending = <WorkoutSession>[];
+    final maps = await db.query('sessions', where: 'is_synced = ?', whereArgs: [0]);
+    for (var m in maps) {
+      final sid = m['id'] as int;
+      final entriesMaps = await db.query(
+        'entries',
+        where: 'session_id = ?',
+        whereArgs: [sid],
+      );
+      final entries = entriesMaps.map((e) {
+        return SessionEntry.fromMap({
+          'id': e['id'].toString(),
+          'exerciseId': e['exercise_id'],
+          'completed': (e['completed'] as int) == 1,
+          'comment': e['comment'] as String?,
+          'weight': (e['weight'] as num?)?.toDouble(),
+          'reps': e['reps'] as int?,
+          'sets': e['sets'] as int?,
+        });
+      }).toList();
+
+      pending.add(WorkoutSession(
+        id: sid.toString(),
+        date: DateTime.parse(m['date'] as String),
+        comment: m['comment'] as String?,
+        entries: entries,
+      ));
+    }
+    return pending;
+  }
+
+  /// Помечает уже синхронизированную сессию (cloud_id + is_synced = 1)
   Future<void> markSynced(String localId, String cloudId) async {
     final db = await dbService.database;
-    final idInt = int.parse(localId);
+    final lid = int.parse(localId);
     await db.update(
       'sessions',
       {'cloud_id': cloudId, 'is_synced': 1},
       where: 'id = ?',
-      whereArgs: [idInt],
+      whereArgs: [lid],
     );
   }
 
-  /// Пробует синхронизировать все незасинкённые
+  /// Синхронизирует все несинкнутые сессии
   Future<void> syncPending(CloudSessionRepository cloudRepo) async {
     final pending = await getUnsynced();
     for (var s in pending) {
@@ -143,13 +139,11 @@ class SessionRepository {
     }
   }
 
-  /// Удаление сессии
+  /// Полное удаление сессии
   Future<void> deleteSession(String sessionId) async {
     final db = await dbService.database;
-    final id = int.parse(sessionId);
-    await db.delete('entries',
-        where: 'session_id = ?', whereArgs: [id]);
-    await db.delete('sessions',
-        where: 'id = ?', whereArgs: [id]);
+    final sid = int.parse(sessionId);
+    await db.delete('entries', where: 'session_id = ?', whereArgs: [sid]);
+    await db.delete('sessions', where: 'id = ?', whereArgs: [sid]);
   }
 }

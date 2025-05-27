@@ -1,41 +1,28 @@
+// lib/main.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/date_symbol_data_local.dart';
-import 'package:intl/intl.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-import 'src/routes.dart';
-import 'firebase_options.dart';
+import 'src/providers/session_provider.dart';
 
-final RouteObserver<ModalRoute<void>> routeObserver =
-    RouteObserver<ModalRoute<void>>();
-
-final user = FirebaseAuth.instance.currentUser;
-if (user != null) {
-  final local = ref.read(sessionRepoProvider);
-  final cloud = ref.read(cloudSessionRepoProvider);
-  local.syncPending(cloud);
-}
-
-Future<void> main() async {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-// 1) Локализация
-  await initializeDateFormatting('ru', null);
-  Intl.defaultLocale = 'ru';
-
-  // 2) Инициализация Firebase
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  // 3) (по желанию) Анонимная авторизация
-  // await FirebaseAuth.instance.signInAnonymously();
-
-  // 4) Запуск приложения
-  runApp(const ProviderScope(child: WorkoutApp()));
+  await Firebase.initializeApp();
+  // при старте сразу синхронизируем несинкнутые, если залогинен
+  final user = FirebaseAuth.instance.currentUser;
+  final container = ProviderScope.containerOf(navigatorKey.currentContext ?? 
+    WidgetsBinding.instance.renderViewElement!);
+  if (user != null) {
+    await container.read(sessionRepoProvider).syncPending(
+      container.read(cloudSessionRepoProvider),
+    );
+  }
+  runApp(const ProviderScope(child: MyApp()));
 }
+
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 class WorkoutApp extends StatelessWidget {
   const WorkoutApp({Key? key}) : super(key: key);
