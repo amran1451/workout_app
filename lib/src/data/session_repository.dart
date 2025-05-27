@@ -3,13 +3,12 @@
 import 'package:sqflite/sqflite.dart';
 import '../models/workout_session.dart';
 import '../models/session_entry.dart';
-import '../local/db_service.dart';
+import 'local/db_service.dart';
 import 'cloud_session_repository.dart';
 
 class SessionRepository {
   final DatabaseService dbService = DatabaseService.instance;
 
-  /// Создаёт новую сессию и её записи в SQLite (is_synced = 0)
   Future<WorkoutSession> create(WorkoutSession session) async {
     final db = await dbService.database;
     final sid = await db.insert('sessions', {
@@ -29,7 +28,6 @@ class SessionRepository {
     );
   }
 
-  /// Обновляет сессию в SQLite и сбрасывает флаг синка
   Future<void> update(WorkoutSession session) async {
     final db = await dbService.database;
     final id = int.parse(session.id!);
@@ -49,7 +47,6 @@ class SessionRepository {
     }
   }
 
-  /// Читает все сессии с их записями
   Future<List<WorkoutSession>> getAll() async {
     final db = await dbService.database;
     final sessions = <WorkoutSession>[];
@@ -81,10 +78,10 @@ class SessionRepository {
         entries: entries,
       ));
     }
+
     return sessions;
   }
 
-  /// Возвращает локальные сессии, ещё не синхронизированные в облако
   Future<List<WorkoutSession>> getUnsynced() async {
     final db = await dbService.database;
     final pending = <WorkoutSession>[];
@@ -118,7 +115,6 @@ class SessionRepository {
     return pending;
   }
 
-  /// Помечает уже синхронизированную сессию (cloud_id + is_synced = 1)
   Future<void> markSynced(String localId, String cloudId) async {
     final db = await dbService.database;
     final lid = int.parse(localId);
@@ -130,7 +126,6 @@ class SessionRepository {
     );
   }
 
-  /// Синхронизирует все несинкнутые сессии
   Future<void> syncPending(CloudSessionRepository cloudRepo) async {
     final pending = await getUnsynced();
     for (var s in pending) {
@@ -139,7 +134,6 @@ class SessionRepository {
     }
   }
 
-  /// Полное удаление сессии
   Future<void> deleteSession(String sessionId) async {
     final db = await dbService.database;
     final sid = int.parse(sessionId);

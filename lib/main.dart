@@ -4,44 +4,43 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
+import 'src/routes.dart';
 import 'src/providers/session_provider.dart';
 
-void main() async {
+final RouteObserver<PageRoute> routeObserver = RouteObserver<PageRoute>();
+
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
-  // при старте сразу синхронизируем несинкнутые, если залогинен
-  final user = FirebaseAuth.instance.currentUser;
-  final container = ProviderScope.containerOf(navigatorKey.currentContext ?? 
-    WidgetsBinding.instance.renderViewElement!);
-  if (user != null) {
-    await container.read(sessionRepoProvider).syncPending(
-      container.read(cloudSessionRepoProvider),
-    );
-  }
-  runApp(const ProviderScope(child: MyApp()));
+
+  runApp(const ProviderScope(child: WorkoutApp()));
 }
 
-final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
-
-class WorkoutApp extends StatelessWidget {
+class WorkoutApp extends ConsumerWidget {
   const WorkoutApp({Key? key}) : super(key: key);
 
   @override
-  Widget build(BuildContext context) {
-
+  Widget build(BuildContext context, WidgetRef ref) {
+    // при старте приложения синхронизируем офлайн-данные
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      ref.read(sessionRepoProvider).syncPending(
+        ref.read(cloudSessionRepoProvider),
+      );
+    }
 
     return MaterialApp(
-      locale: const Locale('ru'),
-      supportedLocales: const [Locale('ru')],
+      navigatorObservers: [routeObserver],
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      navigatorObservers: [routeObserver],
-      title: 'Workout App',
-      theme: ThemeData(primarySwatch: Colors.blue),
+      supportedLocales: const [
+        Locale('ru'),
+      ],
       initialRoute: Routes.home,
       routes: Routes.routesMap,
     );
