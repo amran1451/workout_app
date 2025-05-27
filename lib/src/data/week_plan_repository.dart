@@ -1,33 +1,32 @@
-import '../models/week_plan.dart';
+// lib/src/data/week_plan_repository.dart
+
+import 'package:sqflite/sqflite.dart';
 import 'local/db_service.dart';
-import 'i_week_plan_repository.dart';
+import '../models/week_plan.dart';
 
-/// Локальный (sqflite) репозиторий недельных планов
-class WeekPlanRepository implements IWeekPlanRepository {
-  final DatabaseService dbService;
-  WeekPlanRepository(this.dbService);
+class WeekPlanRepository {
+  final DatabaseService dbService = DatabaseService.instance;
 
-  @override
-  Future<WeekPlan> getOrCreateForDate(DateTime date) async {
-    final monday = DateTime(date.year, date.month, date.day)
-        .subtract(Duration(days: date.weekday - 1));
+  /// Получить или создать запись в week_plans с ключом startDate = monday.millisecondsSinceEpoch
+  Future<WeekPlan> getOrCreateForDate(DateTime monday) async {
     final db = await dbService.database;
-    final list = await db.query(
+    final key = monday.millisecondsSinceEpoch;
+    final maps = await db.query(
       'week_plans',
       where: 'startDate = ?',
-      whereArgs: [monday.millisecondsSinceEpoch],
+      whereArgs: [key],
     );
-    if (list.isNotEmpty) {
-      final m = list.first;
+    if (maps.isNotEmpty) {
+      final m = maps.first;
       return WeekPlan(
-        id: m['id'].toString(),
+        id: m['id'] as int,
         startDate: DateTime.fromMillisecondsSinceEpoch(m['startDate'] as int),
       );
+    } else {
+      final id = await db.insert('week_plans', {
+        'startDate': key,
+      });
+      return WeekPlan(id: id, startDate: monday);
     }
-    final newId = await db.insert(
-      'week_plans',
-      {'startDate': monday.millisecondsSinceEpoch},
-    );
-    return WeekPlan(id: newId.toString(), startDate: monday);
   }
 }

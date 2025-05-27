@@ -19,14 +19,14 @@ class DatabaseService {
     final path = join(dbPath, filePath);
     return openDatabase(
       path,
-      version: 4,                 // подняли до 4
+      version: 4,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
   }
 
   Future _createDB(Database db, int version) async {
-    // 1) exercises
+    // -- упражнения, сессии и записи (v1–v3) не трогаем, оставляем как есть
     await db.execute('''
       CREATE TABLE exercises (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -40,7 +40,6 @@ class DatabaseService {
       );
     ''');
 
-    // 2) sessions
     await db.execute('''
       CREATE TABLE sessions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -51,7 +50,6 @@ class DatabaseService {
       );
     ''');
 
-    // 3) entries
     await db.execute('''
       CREATE TABLE entries (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -66,70 +64,48 @@ class DatabaseService {
       );
     ''');
 
-    // 4) week_plans
+    // -- НОВАЯ СХЕМА v4 для множества планов на неделю:
     await db.execute('''
       CREATE TABLE week_plans (
-        id TEXT PRIMARY KEY,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
         startDate INTEGER NOT NULL
       );
     ''');
 
-    // 5) week_assignments
     await db.execute('''
       CREATE TABLE week_assignments (
-        id TEXT PRIMARY KEY,
-        planId TEXT NOT NULL,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        weekPlanId INTEGER NOT NULL,
         dayOfWeek INTEGER NOT NULL,
         exerciseId INTEGER NOT NULL,
         defaultWeight REAL,
         defaultReps INTEGER,
         defaultSets INTEGER,
-        FOREIGN KEY(planId) REFERENCES week_plans(id)
+        FOREIGN KEY(weekPlanId) REFERENCES week_plans(id)
       );
     ''');
   }
 
-  Future _upgradeDB(Database db, int oldVersion, int newVersion) async {
-    if (oldVersion < 2) {
-      // миграция v1→v2: колонки cloud_id, is_synced для sessions
-      await db.execute('ALTER TABLE sessions ADD COLUMN cloud_id TEXT;');
-      await db.execute(
-        'ALTER TABLE sessions ADD COLUMN is_synced INTEGER NOT NULL DEFAULT 0;'
-      );
-    }
-    if (oldVersion < 3) {
-      // миграция v2→v3: таблица exercises
-      await db.execute('''
-        CREATE TABLE exercises (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          name TEXT NOT NULL,
-          weight REAL,
-          reps INTEGER,
-          sets INTEGER,
-          notes TEXT,
-          cloud_id TEXT,
-          is_synced INTEGER NOT NULL DEFAULT 0
-        );
-      ''');
-    }
-    if (oldVersion < 4) {
-      // миграция v3→v4: таблицы week_plans и week_assignments
+  Future _upgradeDB(Database db, int oldV, int newV) async {
+    // Если у вас уже есть старые БД и вы не хотите удалять приложение,
+    // вам нужно правильно мигрировать. Здесь кратко:
+    if (oldV < 4) {
       await db.execute('''
         CREATE TABLE week_plans (
-          id TEXT PRIMARY KEY,
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
           startDate INTEGER NOT NULL
         );
       ''');
       await db.execute('''
         CREATE TABLE week_assignments (
-          id TEXT PRIMARY KEY,
-          planId TEXT NOT NULL,
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          weekPlanId INTEGER NOT NULL,
           dayOfWeek INTEGER NOT NULL,
           exerciseId INTEGER NOT NULL,
           defaultWeight REAL,
           defaultReps INTEGER,
           defaultSets INTEGER,
-          FOREIGN KEY(planId) REFERENCES week_plans(id)
+          FOREIGN KEY(weekPlanId) REFERENCES week_plans(id)
         );
       ''');
     }

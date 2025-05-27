@@ -1,37 +1,42 @@
-import '../models/week_assignment.dart';
+// lib/src/data/week_assignment_repository.dart
+
+import 'package:sqflite/sqflite.dart';
 import 'local/db_service.dart';
-import 'i_week_assignment_repository.dart';
+import '../models/week_assignment.dart';
 
-/// Локальный (sqflite) репозиторий заданий в недельном плане
-class WeekAssignmentRepository implements IWeekAssignmentRepository {
-  final DatabaseService dbService;
-  WeekAssignmentRepository(this.dbService);
+class WeekAssignmentRepository {
+  final DatabaseService dbService = DatabaseService.instance;
 
-  @override
-  Future<List<WeekAssignment>> getByWeekPlan(int planId) async {
+  /// Вернуть все задания для локального плана с primary key = weekPlanId
+  Future<List<WeekAssignment>> getByWeekPlan(int weekPlanId) async {
     final db = await dbService.database;
     final maps = await db.query(
       'week_assignments',
       where: 'weekPlanId = ?',
-      whereArgs: [planId],
+      whereArgs: [weekPlanId],
     );
     return maps.map((m) => WeekAssignment.fromMap(m)).toList();
   }
 
-  @override
-  Future<void> saveForWeekPlan(
-      int planId, List<WeekAssignment> assignments) async {
+  /// Создать все переданные задания (обычно после getOrCreateForDate)
+  Future<void> createAll(int weekPlanId, List<WeekAssignment> list) async {
     final db = await dbService.database;
+    // Сначала очистить старые
     await db.delete(
       'week_assignments',
       where: 'weekPlanId = ?',
-      whereArgs: [planId],
+      whereArgs: [weekPlanId],
     );
-    for (var a in assignments) {
-      final map = a.toMap();
-      map['weekPlanId'] = planId;
-      map.remove('id');
-      await db.insert('week_assignments', map);
+    // Потом вставить новые
+    for (var a in list) {
+      await db.insert('week_assignments', {
+        'weekPlanId': weekPlanId,
+        'dayOfWeek': a.dayOfWeek,
+        'exerciseId': a.exerciseId,
+        'defaultWeight': a.defaultWeight,
+        'defaultReps': a.defaultReps,
+        'defaultSets': a.defaultSets,
+      });
     }
   }
 }
