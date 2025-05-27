@@ -12,14 +12,12 @@ import '../../providers/exercise_provider.dart';
 
 class ExerciseFormPage extends ConsumerStatefulWidget {
   const ExerciseFormPage({Key? key}) : super(key: key);
-
   @override
   ConsumerState<ExerciseFormPage> createState() =>
       _ExerciseFormPageState();
 }
 
-class _ExerciseFormPageState
-    extends ConsumerState<ExerciseFormPage> {
+class _ExerciseFormPageState extends ConsumerState<ExerciseFormPage> {
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
   final _wCtrl = TextEditingController();
@@ -101,8 +99,7 @@ class _ExerciseFormPageState
               ElevatedButton(
                 onPressed: () async {
                   if (!_formKey.currentState!.validate()) return;
-
-                  // Собираем данные из формы
+                  // Сбор данных
                   final name = _nameCtrl.text;
                   final weight = _wCtrl.text.isNotEmpty
                       ? double.parse(_wCtrl.text)
@@ -113,9 +110,10 @@ class _ExerciseFormPageState
                   final sets = _sCtrl.text.isNotEmpty
                       ? int.parse(_sCtrl.text)
                       : null;
-                  final notes = _nCtrl.text.isNotEmpty ? _nCtrl.text : null;
+                  final notes =
+                      _nCtrl.text.isNotEmpty ? _nCtrl.text : null;
 
-                  // 1) Локальное сохранение
+                  // 1) локальное сохранение
                   final local = ref.read(exerciseLocalRepoProvider);
                   late Exercise e;
                   if (_isEditing && _editing != null) {
@@ -137,23 +135,25 @@ class _ExerciseFormPageState
                     e = await local.create(e);
                   }
 
-                  // 2) Пуш в облако (если залогинен)
+                  // 2) пуш в облако
                   final user = FirebaseAuth.instance.currentUser;
                   if (user != null) {
                     final cloud = ref.read(cloudExerciseRepoProvider);
                     final cloudE = _isEditing
                         ? await cloud.update(e).then((_) => e)
                         : await cloud.create(e);
-                    await local.markSynced(e, cloudE.id!.toString());
+                    await local.markSynced(
+                        e, cloudE.id!.toString());
                   }
 
-                  // 3) Обновляем UI-список
-                  ref.read(exerciseListProvider.notifier).load();
+                  // 3) обновить список
+                  ref
+                      .read(exerciseListProvider.notifier)
+                      .load();
 
                   Navigator.pop(context);
                 },
-                child:
-                    Text(_isEditing ? 'Обновить' : 'Сохранить'),
+                child: Text(_isEditing ? 'Обновить' : 'Сохранить'),
               ),
             ],
           ),

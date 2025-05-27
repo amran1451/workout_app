@@ -1,19 +1,19 @@
 // lib/src/data/exercise_repository.dart
 
 import 'package:sqflite/sqflite.dart';
-import 'local/db_service.dart';
+import '../local/db_service.dart';
 import '../models/exercise.dart';
 import 'cloud_exercise_repository.dart';
 
 class ExerciseRepository {
   final DatabaseService dbService = DatabaseService.instance;
 
-  /// Create local; returns with assigned id
+  /// Создать новое упражнение (локально)
   Future<Exercise> create(Exercise e) async {
     final db = await dbService.database;
     final id = await db.insert('exercises', e.toDbMap());
     e.id = id;
-    // mark unsynced by default
+    // помечаем как несинхронизированное
     await db.update(
       'exercises',
       {'is_synced': 0, 'cloud_id': null},
@@ -23,6 +23,7 @@ class ExerciseRepository {
     return e;
   }
 
+  /// Обновить упражнение (локально)
   Future<void> update(Exercise e) async {
     final db = await dbService.database;
     final id = e.id!;
@@ -34,12 +35,20 @@ class ExerciseRepository {
     );
   }
 
+  /// Удалить упражнение (локально)
+  Future<void> delete(int id) async {
+    final db = await dbService.database;
+    await db.delete('exercises', where: 'id = ?', whereArgs: [id]);
+  }
+
+  /// Получить все локальные упражнения
   Future<List<Exercise>> getAll() async {
     final db = await dbService.database;
     final maps = await db.query('exercises');
     return maps.map((m) => Exercise.fromMap(m)).toList();
   }
 
+  /// Получить все локальные не синхронизированные
   Future<List<Exercise>> getUnsynced() async {
     final db = await dbService.database;
     final maps = await db.query(
@@ -50,6 +59,7 @@ class ExerciseRepository {
     return maps.map((m) => Exercise.fromMap(m)).toList();
   }
 
+  /// Пометить как синхронизированное
   Future<void> markSynced(Exercise e, String cloudId) async {
     final db = await dbService.database;
     await db.update(
@@ -60,7 +70,7 @@ class ExerciseRepository {
     );
   }
 
-  /// Push all pending local to Firestore
+  /// Синхронизировать все pending в Firestore
   Future<void> syncPending(CloudExerciseRepository cloudRepo) async {
     final list = await getUnsynced();
     for (var e in list) {

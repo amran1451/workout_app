@@ -16,27 +16,27 @@ class ExerciseListNotifier extends StateNotifier<List<Exercise>> {
     load();
   }
 
-  /// Загрузить все упражнения из локального репозитория
+  /// Загрузить все упражнения
   Future<void> load() async {
     final repo = ref.read(exerciseLocalRepoProvider);
     state = await repo.getAll();
   }
 
-  /// Добавить упражнение
-  Future<void> add(Exercise exercise) async {
+  /// Добавить
+  Future<void> add(Exercise e) async {
     final repo = ref.read(exerciseLocalRepoProvider);
-    await repo.create(exercise);
+    await repo.create(e);
     await load();
   }
 
-  /// Обновить упражнение
-  Future<void> update(Exercise exercise) async {
+  /// Обновить
+  Future<void> update(Exercise e) async {
     final repo = ref.read(exerciseLocalRepoProvider);
-    await repo.update(exercise);
+    await repo.update(e);
     await load();
   }
 
-  /// Удалить упражнение
+  /// Удалить
   Future<void> delete(int id) async {
     final repo = ref.read(exerciseLocalRepoProvider);
     await repo.delete(id);

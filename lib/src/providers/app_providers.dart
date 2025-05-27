@@ -8,7 +8,7 @@ import '../data/cloud_exercise_repository.dart';
 import '../data/session_repository.dart';
 import '../data/cloud_session_repository.dart';
 
-/// Текущий Firebase User ID
+/// Текущий Firebase UID
 final uidProvider = Provider<String>((ref) {
   final u = FirebaseAuth.instance.currentUser;
   if (u == null) throw Exception('User not signed in');
