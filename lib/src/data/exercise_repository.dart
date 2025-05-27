@@ -1,7 +1,7 @@
 // lib/src/data/exercise_repository.dart
 
 import 'package:sqflite/sqflite.dart';
-import '../local/db_service.dart';
+import 'local/db_service.dart';
 import '../models/exercise.dart';
 import 'cloud_exercise_repository.dart';
 
@@ -65,7 +65,7 @@ class ExerciseRepository {
     final list = await getUnsynced();
     for (var e in list) {
       final cloudE = await cloudRepo.create(e);
-      await markSynced(e, cloudE.id!);
+      await markSynced(e, cloudE.id!.toString());
     }
   }
 }

@@ -1,6 +1,5 @@
 // lib/src/ui/pages/exercise_form_page.dart
 
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -13,17 +12,20 @@ import '../../providers/exercise_provider.dart';
 
 class ExerciseFormPage extends ConsumerStatefulWidget {
   const ExerciseFormPage({Key? key}) : super(key: key);
+
   @override
-  ConsumerState<ExerciseFormPage> createState() => _ExerciseFormPageState();
+  ConsumerState<ExerciseFormPage> createState() =>
+      _ExerciseFormPageState();
 }
 
-class _ExerciseFormPageState extends ConsumerState<ExerciseFormPage> {
+class _ExerciseFormPageState
+    extends ConsumerState<ExerciseFormPage> {
   final _formKey = GlobalKey<FormState>();
-  late final TextEditingController _nameCtrl = TextEditingController();
-  late final TextEditingController _wCtrl = TextEditingController();
-  late final TextEditingController _rCtrl = TextEditingController();
-  late final TextEditingController _sCtrl = TextEditingController();
-  late final TextEditingController _nCtrl = TextEditingController();
+  final _nameCtrl = TextEditingController();
+  final _wCtrl = TextEditingController();
+  final _rCtrl = TextEditingController();
+  final _sCtrl = TextEditingController();
+  final _nCtrl = TextEditingController();
 
   Exercise? _editing;
   bool _isEditing = false;
@@ -32,7 +34,7 @@ class _ExerciseFormPageState extends ConsumerState<ExerciseFormPage> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (!_isEditing) {
-      final args = ModalRoute.of(context)!.settings.arguments;
+      final args = ModalRoute.of(context)?.settings.arguments;
       if (args is Exercise) {
         _editing = args;
         _isEditing = true;
@@ -59,7 +61,9 @@ class _ExerciseFormPageState extends ConsumerState<ExerciseFormPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_isEditing ? 'Редактировать упражнение' : 'Новое упражнение'),
+        title: Text(
+          _isEditing ? 'Редактировать упражнение' : 'Новое упражнение',
+        ),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
@@ -98,7 +102,7 @@ class _ExerciseFormPageState extends ConsumerState<ExerciseFormPage> {
                 onPressed: () async {
                   if (!_formKey.currentState!.validate()) return;
 
-                  // 1) собрать данные
+                  // Собираем данные из формы
                   final name = _nameCtrl.text;
                   final weight = _wCtrl.text.isNotEmpty
                       ? double.parse(_wCtrl.text)
@@ -111,10 +115,10 @@ class _ExerciseFormPageState extends ConsumerState<ExerciseFormPage> {
                       : null;
                   final notes = _nCtrl.text.isNotEmpty ? _nCtrl.text : null;
 
-                  // 2) локальный репозиторий
+                  // 1) Локальное сохранение
                   final local = ref.read(exerciseLocalRepoProvider);
-                  Exercise e;
-                  if (_isEditing) {
+                  late Exercise e;
+                  if (_isEditing && _editing != null) {
                     e = _editing!
                       ..name = name
                       ..weight = weight
@@ -133,22 +137,23 @@ class _ExerciseFormPageState extends ConsumerState<ExerciseFormPage> {
                     e = await local.create(e);
                   }
 
-                  // 3) пуш в облако при наличии сети+авторизации
+                  // 2) Пуш в облако (если залогинен)
                   final user = FirebaseAuth.instance.currentUser;
                   if (user != null) {
                     final cloud = ref.read(cloudExerciseRepoProvider);
                     final cloudE = _isEditing
                         ? await cloud.update(e).then((_) => e)
                         : await cloud.create(e);
-                    await local.markSynced(e, cloudE.id!);
+                    await local.markSynced(e, cloudE.id!.toString());
                   }
 
-                  // 4) обновить экран списка
+                  // 3) Обновляем UI-список
                   ref.read(exerciseListProvider.notifier).load();
 
                   Navigator.pop(context);
                 },
-                child: Text(_isEditing ? 'Обновить' : 'Сохранить'),
+                child:
+                    Text(_isEditing ? 'Обновить' : 'Сохранить'),
               ),
             ],
           ),
