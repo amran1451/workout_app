@@ -13,6 +13,7 @@ import '../../providers/session_provider.dart';
 import '../../providers/exercise_provider.dart';
 import '../../providers/week_providers.dart';
 import '../../utils/id_utils.dart';
+import '../../models/session_entry.dart';
 
 class WorkoutPage extends ConsumerStatefulWidget {
   const WorkoutPage({Key? key}) : super(key: key);
