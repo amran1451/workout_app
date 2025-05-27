@@ -1,7 +1,7 @@
 // lib/src/providers/exercise_provider.dart
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../data/repository.dart' show ExerciseRepository;
+import '../data/repository.dart';
 import '../models/exercise.dart';
 import 'repo_providers.dart' show exerciseRepoProvider;
 
