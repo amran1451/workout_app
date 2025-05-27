@@ -9,6 +9,10 @@ import '../models/week_assignment.dart';
 import '../models/week_plan.dart';
 import '../models/workout_session.dart';
 
+import '../providers/session_provider.dart';
+
+import '../data/local/db_service.dart';
+import '../data/exercise_repository.dart';
 import '../data/repository.dart' show ExerciseRepository;
 import '../data/session_repository.dart' show SessionRepository;
 import '../data/cloud_exercise_repository.dart';
@@ -80,6 +84,15 @@ final sessionRepoProvider =
 final cloudSessionRepoProvider =
     Provider<CloudSessionRepository>(
         (ref) => CloudSessionRepository(ref.read(uidProvider)));
+
+/// Локальный репозиторий упражнений
+final exerciseLocalRepoProvider =
+    Provider<ExerciseRepository>((_) => ExerciseRepository());
+
+/// Облачный репозиторий упражнений
+final cloudExerciseRepoProvider = Provider<CloudExerciseRepository>(
+  (ref) => CloudExerciseRepository(ref.read(uidProvider)),
+);
 
 /// UI-список записей сессии (WorkoutPage)
 final sessionEntriesProvider =

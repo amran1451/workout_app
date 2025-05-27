@@ -1,61 +1,57 @@
 // lib/src/ui/pages/exercise_form_page.dart
+
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
 import '../../models/exercise.dart';
+import '../../data/exercise_repository.dart';
+import '../../data/cloud_exercise_repository.dart';
+import '../../providers/app_providers.dart';
 import '../../providers/exercise_provider.dart';
 
 class ExerciseFormPage extends ConsumerStatefulWidget {
   const ExerciseFormPage({Key? key}) : super(key: key);
-
   @override
   ConsumerState<ExerciseFormPage> createState() => _ExerciseFormPageState();
 }
 
 class _ExerciseFormPageState extends ConsumerState<ExerciseFormPage> {
   final _formKey = GlobalKey<FormState>();
-  late TextEditingController _nameController;
-  late TextEditingController _weightController;
-  late TextEditingController _repsController;
-  late TextEditingController _setsController;
-  late TextEditingController _notesController;
+  late final TextEditingController _nameCtrl = TextEditingController();
+  late final TextEditingController _wCtrl = TextEditingController();
+  late final TextEditingController _rCtrl = TextEditingController();
+  late final TextEditingController _sCtrl = TextEditingController();
+  late final TextEditingController _nCtrl = TextEditingController();
 
   Exercise? _editing;
   bool _isEditing = false;
 
   @override
-  void initState() {
-    super.initState();
-    _nameController = TextEditingController();
-    _weightController = TextEditingController();
-    _repsController = TextEditingController();
-    _setsController = TextEditingController();
-    _notesController = TextEditingController();
-  }
-
-  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_editing == null) {
+    if (!_isEditing) {
       final args = ModalRoute.of(context)!.settings.arguments;
       if (args is Exercise) {
         _editing = args;
         _isEditing = true;
-        _nameController.text = _editing!.name;
-        _weightController.text = _editing!.weight?.toString() ?? '';
-        _repsController.text = _editing!.reps?.toString() ?? '';
-        _setsController.text = _editing!.sets?.toString() ?? '';
-        _notesController.text = _editing!.notes ?? '';
+        _nameCtrl.text = args.name;
+        _wCtrl.text = args.weight?.toString() ?? '';
+        _rCtrl.text = args.reps?.toString() ?? '';
+        _sCtrl.text = args.sets?.toString() ?? '';
+        _nCtrl.text = args.notes ?? '';
       }
     }
   }
 
   @override
   void dispose() {
-    _nameController.dispose();
-    _weightController.dispose();
-    _repsController.dispose();
-    _setsController.dispose();
-    _notesController.dispose();
+    _nameCtrl.dispose();
+    _wCtrl.dispose();
+    _rCtrl.dispose();
+    _sCtrl.dispose();
+    _nCtrl.dispose();
     super.dispose();
   }
 
@@ -72,70 +68,85 @@ class _ExerciseFormPageState extends ConsumerState<ExerciseFormPage> {
           child: ListView(
             children: [
               TextFormField(
-                controller: _nameController,
+                controller: _nameCtrl,
                 decoration: const InputDecoration(labelText: 'Название'),
-                validator: (v) => v == null || v.isEmpty ? 'Введите название' : null,
+                validator: (v) =>
+                    v == null || v.isEmpty ? 'Введите название' : null,
               ),
               TextFormField(
-                controller: _weightController,
+                controller: _wCtrl,
                 decoration: const InputDecoration(labelText: 'Вес (кг)'),
                 keyboardType: TextInputType.number,
               ),
               TextFormField(
-                controller: _repsController,
+                controller: _rCtrl,
                 decoration: const InputDecoration(labelText: 'Повторы'),
                 keyboardType: TextInputType.number,
               ),
               TextFormField(
-                controller: _setsController,
+                controller: _sCtrl,
                 decoration: const InputDecoration(labelText: 'Подходы'),
                 keyboardType: TextInputType.number,
               ),
               TextFormField(
-                controller: _notesController,
-                decoration: const InputDecoration(labelText: 'Важные заметки'),
+                controller: _nCtrl,
+                decoration: const InputDecoration(labelText: 'Заметки'),
                 maxLines: 3,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
               ElevatedButton(
                 onPressed: () async {
-                  if (_formKey.currentState!.validate()) {
-                    final name = _nameController.text;
-                    final weight = _weightController.text.isNotEmpty
-                        ? double.parse(_weightController.text)
-                        : null;
-                    final reps = _repsController.text.isNotEmpty
-                        ? int.parse(_repsController.text)
-                        : null;
-                    final sets = _setsController.text.isNotEmpty
-                        ? int.parse(_setsController.text)
-                        : null;
-                    final notes = _notesController.text.isNotEmpty
-                        ? _notesController.text
-                        : null;
+                  if (!_formKey.currentState!.validate()) return;
 
-                    final repo = ref.read(exerciseListProvider.notifier);
-                    if (_isEditing && _editing != null) {
-                      _editing!
-                        ..name = name
-                        ..weight = weight
-                        ..reps = reps
-                        ..sets = sets
-                        ..notes = notes;
-                      await repo.update(_editing!);
-                    } else {
-                      await repo.add(
-                        Exercise(
-                          name: name,
-                          weight: weight,
-                          reps: reps,
-                          sets: sets,
-                          notes: notes,
-                        ),
-                      );
-                    }
-                    Navigator.pop(context);
+                  // 1) собрать данные
+                  final name = _nameCtrl.text;
+                  final weight = _wCtrl.text.isNotEmpty
+                      ? double.parse(_wCtrl.text)
+                      : null;
+                  final reps = _rCtrl.text.isNotEmpty
+                      ? int.parse(_rCtrl.text)
+                      : null;
+                  final sets = _sCtrl.text.isNotEmpty
+                      ? int.parse(_sCtrl.text)
+                      : null;
+                  final notes = _nCtrl.text.isNotEmpty ? _nCtrl.text : null;
+
+                  // 2) локальный репозиторий
+                  final local = ref.read(exerciseLocalRepoProvider);
+                  Exercise e;
+                  if (_isEditing) {
+                    e = _editing!
+                      ..name = name
+                      ..weight = weight
+                      ..reps = reps
+                      ..sets = sets
+                      ..notes = notes;
+                    await local.update(e);
+                  } else {
+                    e = Exercise(
+                      name: name,
+                      weight: weight,
+                      reps: reps,
+                      sets: sets,
+                      notes: notes,
+                    );
+                    e = await local.create(e);
                   }
+
+                  // 3) пуш в облако при наличии сети+авторизации
+                  final user = FirebaseAuth.instance.currentUser;
+                  if (user != null) {
+                    final cloud = ref.read(cloudExerciseRepoProvider);
+                    final cloudE = _isEditing
+                        ? await cloud.update(e).then((_) => e)
+                        : await cloud.create(e);
+                    await local.markSynced(e, cloudE.id!);
+                  }
+
+                  // 4) обновить экран списка
+                  ref.read(exerciseListProvider.notifier).load();
+
+                  Navigator.pop(context);
                 },
                 child: Text(_isEditing ? 'Обновить' : 'Сохранить'),
               ),

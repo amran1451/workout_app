@@ -1,4 +1,4 @@
-// lib/src/local/db_service.dart
+// lib/src/data/local/db_service.dart
 
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
@@ -19,14 +19,26 @@ class DatabaseService {
     final path = join(dbPath, filePath);
     return await openDatabase(
       path,
-      version: 2,                       // bumped from 1 → 2
+      version: 3,            // bumped to 3
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
   }
 
   Future _createDB(Database db, int version) async {
-    // версия 2 сразу с нужными колонками
+    // version 3 creates all three tables
+    await db.execute('''
+      CREATE TABLE exercises (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        weight REAL,
+        reps INTEGER,
+        sets INTEGER,
+        notes TEXT,
+        cloud_id TEXT,
+        is_synced INTEGER NOT NULL DEFAULT 0
+      );
+    ''');
     await db.execute('''
       CREATE TABLE sessions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -51,12 +63,28 @@ class DatabaseService {
     ''');
   }
 
-  Future _upgradeDB(Database db, int oldVersion, int newVersion) async {
-    if (oldVersion < 2) {
+  Future _upgradeDB(Database db, int oldV, int newV) async {
+    if (oldV < 2) {
+      // sessions/entries migration (v2)
       await db.execute('ALTER TABLE sessions ADD COLUMN cloud_id TEXT;');
       await db.execute(
         'ALTER TABLE sessions ADD COLUMN is_synced INTEGER NOT NULL DEFAULT 0;'
       );
+    }
+    if (oldV < 3) {
+      // add exercises table in v3
+      await db.execute('''
+        CREATE TABLE exercises (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          weight REAL,
+          reps INTEGER,
+          sets INTEGER,
+          notes TEXT,
+          cloud_id TEXT,
+          is_synced INTEGER NOT NULL DEFAULT 0
+        );
+      ''');
     }
   }
 }
