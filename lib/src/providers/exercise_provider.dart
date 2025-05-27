@@ -3,16 +3,15 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/repository.dart';
 import '../models/exercise.dart';
-import 'repo_providers.dart' show exerciseRepoProvider;
 
-/// Провайдер самого репозитория упражнений
+/// Провайдер репозитория упражнений
 final exerciseRepositoryProvider =
-Provider<ExerciseRepository>((ref) => ExerciseRepository());
+    Provider<ExerciseRepository>((ref) => ExerciseRepository());
 
 /// Провайдер-стейтнотификатор списка упражнений
 final exerciseListProvider =
-StateNotifierProvider<ExerciseListNotifier, List<Exercise>>(
-      (ref) => ExerciseListNotifier(ref),
+    StateNotifierProvider<ExerciseListNotifier, List<Exercise>>(
+  (ref) => ExerciseListNotifier(ref),
 );
 
 class ExerciseListNotifier extends StateNotifier<List<Exercise>> {
@@ -23,25 +22,24 @@ class ExerciseListNotifier extends StateNotifier<List<Exercise>> {
 
   /// Загрузить все упражнения из БД
   Future<void> load() async {
-    state = await ref.read(exerciseRepoProvider).getAll();
+    state = await ref.read(exerciseRepositoryProvider).getAll();
   }
 
   /// Добавить упражнение
   Future<void> add(Exercise e) async {
-    // Здесь вызывается ExerciseRepository.create(Exercise)
-    await ref.read(exerciseRepoProvider).create(e);
+    await ref.read(exerciseRepositoryProvider).create(e);
     await load();
   }
 
   /// Обновить упражнение
   Future<void> update(Exercise e) async {
-    await ref.read(exerciseRepoProvider).update(e);
+    await ref.read(exerciseRepositoryProvider).update(e);
     await load();
   }
 
   /// Удалить упражнение
   Future<void> delete(int id) async {
-    await ref.read(exerciseRepoProvider).delete(id);
+    await ref.read(exerciseRepositoryProvider).delete(id);
     await load();
   }
 }
