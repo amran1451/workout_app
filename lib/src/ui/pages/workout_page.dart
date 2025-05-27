@@ -10,7 +10,7 @@ import '../../models/workout_session.dart';
 import '../../models/exercise.dart';
 import '../../providers/week_providers.dart';
 import '../../providers/exercise_provider.dart';
-import '../../providers/session_provider.dart';
+import '../../providers/session_provider.dart';  // содержит sessionRepoProvider и cloudSessionRepoProvider
 import '../../utils/id_utils.dart';
 
 class WorkoutPage extends ConsumerStatefulWidget {
@@ -41,7 +41,7 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
     if (_inited) return;
     _inited = true;
 
-    // Если идём из «Редактировать»
+    // 1) Если пришли с аргументом — редактируем
     final args =
         ModalRoute.of(context)?.settings.arguments as WorkoutSession?;
     if (args != null) {
@@ -54,13 +54,13 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
       return;
     }
 
-    // Если есть черновик — грузим его
+    // 2) Если есть черновик — грузим
     final prefs = await SharedPreferences.getInstance();
     if (prefs.containsKey(_draftKey)) {
-      final m = jsonDecode(prefs.getString(_draftKey)!) as Map<String, dynamic>;
-      _isRest = m['isRest'] as bool;
-      _restCtrl.text = m['comment'] as String;
-      _entries = (m['entries'] as List)
+      final map = jsonDecode(prefs.getString(_draftKey)!) as Map<String, dynamic>;
+      _isRest = map['isRest'] as bool;
+      _restCtrl.text = map['comment'] as String;
+      _entries = (map['entries'] as List)
           .cast<Map<String, dynamic>>()
           .map((e) => SessionEntry.fromMap(e))
           .toList();
@@ -68,7 +68,7 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
       return;
     }
 
-    // Иначе — подтягиваем из плана на текущую неделю
+    // 3) Иначе — подтягиваем из плана на текущую неделю
     final now = DateTime.now();
     final monday = DateTime(now.year, now.month, now.day)
         .subtract(Duration(days: now.weekday - 1));
@@ -165,26 +165,35 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
         floatingActionButton: FloatingActionButton(
           child: const Icon(Icons.check),
           onPressed: () async {
-            final local = ref.read(sessionRepoProvider);
-            final cloud = ref.read(cloudSessionRepoProvider);
-
-            final sess = WorkoutSession(
-              id: _editing?.id,
-              date: DateTime.now(),
-              comment: _isRest ? _restCtrl.text : null,
-              entries: _entries,
-            );
-
+            // оборачиваем всё в try/catch
             try {
+              final local = ref.read(sessionRepoProvider);
+              final cloud = ref.read(cloudSessionRepoProvider);
+
+              final sess = WorkoutSession(
+                id: _editing?.id,
+                date: DateTime.now(),
+                comment: _isRest ? _restCtrl.text : null,
+                entries: _entries,
+              );
+
+              // 1) сохраняем локально
               if (_isEditing) {
                 await local.update(sess);
-                await cloud.update(sess);
               } else {
                 await local.create(sess);
-                await cloud.create(sess);
               }
-
-              // очищаем черновик
+              // 2) пытаемся сохранить в облако
+              try {
+                if (_isEditing) {
+                  await cloud.update(sess);
+                } else {
+                  await cloud.create(sess);
+                }
+              } catch (_) {
+                // облако могло не работать — игнорируем
+              }
+              // 3) удаляем черновик
               final prefs = await SharedPreferences.getInstance();
               await prefs.remove(_draftKey);
 
@@ -212,8 +221,8 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
                     const SizedBox(height: 12),
                     TextField(
                       controller: _restCtrl,
-                      decoration: const InputDecoration(
-                          labelText: 'Комментарий к отдыху'),
+                      decoration:
+                          const InputDecoration(labelText: 'Комментарий к отдыху'),
                       maxLines: 3,
                     ),
                   ],
@@ -237,15 +246,15 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
                             Row(children: [
                               Checkbox(
                                 value: e.completed,
-                                onChanged: (v) => setState(
-                                    () => e.completed = v ?? false),
+                                onChanged: (v) =>
+                                    setState(() => e.completed = v ?? false),
                               ),
                               Text(ex.name,
                                   style: const TextStyle(fontSize: 16)),
                               const Spacer(),
                               IconButton(
-                                icon: const Icon(Icons.delete,
-                                    color: Colors.red),
+                                icon:
+                                    const Icon(Icons.delete, color: Colors.red),
                                 onPressed: () => setState(() {
                                   _entries.removeAt(i);
                                   if (_entries.isEmpty) _isRest = true;
@@ -270,35 +279,35 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
                               const Text('Повторы:'),
                               IconButton(
                                 icon: const Icon(Icons.remove),
-                                onPressed: () => setState(() =>
-                                    e.reps = (e.reps ?? 0) - 1),
+                                onPressed: () =>
+                                    setState(() => e.reps = (e.reps ?? 0) - 1),
                               ),
                               Text('${e.reps ?? 0}'),
                               IconButton(
                                 icon: const Icon(Icons.add),
-                                onPressed: () => setState(() =>
-                                    e.reps = (e.reps ?? 0) + 1),
+                                onPressed: () =>
+                                    setState(() => e.reps = (e.reps ?? 0) + 1),
                               ),
                             ]),
                             Row(children: [
                               const Text('Подходы:'),
                               IconButton(
                                 icon: const Icon(Icons.remove),
-                                onPressed: () => setState(() =>
-                                    e.sets = (e.sets ?? 0) - 1),
+                                onPressed: () =>
+                                    setState(() => e.sets = (e.sets ?? 0) - 1),
                               ),
                               Text('${e.sets ?? 0}'),
                               IconButton(
                                 icon: const Icon(Icons.add),
-                                onPressed: () => setState(() =>
-                                    e.sets = (e.sets ?? 0) + 1),
+                                onPressed: () =>
+                                    setState(() => e.sets = (e.sets ?? 0) + 1),
                               ),
                             ]),
                             TextField(
                               controller:
                                   TextEditingController(text: e.comment),
-                              decoration: const InputDecoration(
-                                  labelText: 'Комментарий'),
+                              decoration:
+                                  const InputDecoration(labelText: 'Комментарий'),
                               onChanged: (v) => e.comment = v,
                             ),
                           ],
