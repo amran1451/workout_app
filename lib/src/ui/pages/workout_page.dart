@@ -1,13 +1,16 @@
 // lib/src/ui/pages/workout_page.dart
-
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:intl/intl.dart';
 
 import '../../models/session_entry.dart';
 import '../../models/workout_session.dart';
-import '../../providers/app_providers.dart';
+import '../../models/exercise.dart';
+import '../../providers/week_providers.dart';          // локальные провайдеры плана
+import '../../providers/exercise_provider.dart';     // exerciseListProvider
+import '../../providers/session_provider.dart';
 import '../../utils/id_utils.dart';
 
 class WorkoutPage extends ConsumerStatefulWidget {
@@ -41,6 +44,7 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
     final args =
         ModalRoute.of(context)?.settings.arguments as WorkoutSession?;
     if (args != null) {
+      // редактирование существующей
       _isEditing = true;
       _editing = args;
       _entries = List.from(args.entries);
@@ -52,6 +56,7 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
 
     final prefs = await SharedPreferences.getInstance();
     if (prefs.containsKey(_draftKey)) {
+      // если есть черновик
       final m = jsonDecode(prefs.getString(_draftKey)!) as Map<String, dynamic>;
       _isRest = m['isRest'] as bool;
       _restCtrl.text = m['comment'] as String;
@@ -63,7 +68,47 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
       return;
     }
 
-    // По умолчанию берем пустой список
+    // *** ВОССТАНОВЛЕНИЕ ИЗ ПЛАНА ***
+    final now = DateTime.now();
+    final monday = DateTime(now.year, now.month, now.day)
+        .subtract(Duration(days: now.weekday - 1));
+
+    // 1) создаём или берём план на текущую неделю
+    final weekPlan = await ref
+        .read(weekPlanRepoProvider)
+        .getOrCreateForDate(monday);
+    final planId = toIntId(weekPlan.id);
+
+    // 2) получаем назначения (assignments) для этого плана
+    final assignments =
+        await ref.read(weekAssignmentRepoProvider).getByWeekPlan(planId);
+
+    // 3) фильтрация по сегодняшнему дню
+    final today = now.weekday;
+    final todays =
+        assignments.where((a) => a.dayOfWeek == today).toList();
+
+    // 4) сами упражнения
+    final exercises = ref.read(exerciseListProvider);
+
+    _entries = todays.map((a) {
+      final ex = exercises.firstWhere(
+        (e) => e.id == a.exerciseId,
+        orElse: () =>
+            Exercise(id: a.exerciseId, name: 'Неизвестно'),
+      );
+      return SessionEntry(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        exerciseId: ex.id!,
+        completed: false,
+        weight: a.defaultWeight ?? ex.weight,
+        reps: a.defaultReps ?? ex.reps,
+        sets: a.defaultSets ?? ex.sets,
+        comment: null,
+      );
+    }).toList();
+
+    _isRest = _entries.isEmpty;
     setState(() {});
   }
 
@@ -73,8 +118,14 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
     await p.setString(_draftKey, jsonEncode({
       'isRest': _isRest,
       'comment': _restCtrl.text,
-      'entries': _entries.map((e) => e.toMap()..['id'] = e.id).toList(),
+      'entries':
+          _entries.map((e) => e.toMap()..['id'] = e.id).toList(),
     }));
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) _saveDraft();
   }
 
   @override
@@ -85,11 +136,13 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
   }
 
   Future<void> _addEntry() async {
+    // Показываем bottom sheet со списком упражнений
     final sel = await showModalBottomSheet<int>(
       context: context,
       builder: (_) {
         final list = ref.read(exerciseListProvider);
-        return ListView.builder(
+        return ListView.separated(
+          separatorBuilder: (_, __) => const Divider(),
           itemCount: list.length,
           itemBuilder: (c, i) => ListTile(
             title: Text(list[i].name),
@@ -117,6 +170,7 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
       floatingActionButton: FloatingActionButton(
         child: const Icon(Icons.check),
         onPressed: () async {
+          // сохраняем и локально, и в облаке
           final local = ref.read(sessionRepoProvider);
           final cloud = ref.read(cloudSessionRepoProvider);
 
@@ -135,9 +189,8 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
             await cloud.create(sess);
           }
 
-          // сбросить черновик
-          SharedPreferences.getInstance()
-              .then((p) => p.remove(_draftKey));
+          // удаляем черновик
+          SharedPreferences.getInstance().then((p) => p.remove(_draftKey));
 
           Navigator.pop(context);
         },
@@ -151,7 +204,8 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
             if (_isRest)
               TextField(
                 controller: _restCtrl,
-                decoration: const InputDecoration(labelText: 'Комментарий'),
+                decoration:
+                    const InputDecoration(labelText: 'Комментарий к отдыху'),
                 maxLines: 3,
                 onChanged: (_) => _isRest = true,
               ),
@@ -162,7 +216,7 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
                   itemBuilder: (_, i) => ListTile(
                     title: Text('Упр. ${_entries[i].exerciseId}'),
                     subtitle: Text(
-                        'Вес: ${_entries[i].weight ?? '-'}  Повт: ${_entries[i].reps ?? '-'}'),
+                        'Вес ${_entries[i].weight ?? "-"}  Повт ${_entries[i].reps ?? "-"}'),
                   ),
                 ),
               ),
