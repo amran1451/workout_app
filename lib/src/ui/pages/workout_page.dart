@@ -1,15 +1,15 @@
 // lib/src/ui/pages/workout_page.dart
+
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:intl/intl.dart';
 
 import '../../models/session_entry.dart';
 import '../../models/workout_session.dart';
 import '../../models/exercise.dart';
-import '../../providers/week_providers.dart';          // локальные провайдеры плана
-import '../../providers/exercise_provider.dart';     // exerciseListProvider
+import '../../providers/week_providers.dart';
+import '../../providers/exercise_provider.dart';
 import '../../providers/session_provider.dart';
 import '../../utils/id_utils.dart';
 
@@ -44,7 +44,7 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
     final args =
         ModalRoute.of(context)?.settings.arguments as WorkoutSession?;
     if (args != null) {
-      // редактирование существующей
+      // Редактируем существующую сессию
       _isEditing = true;
       _editing = args;
       _entries = List.from(args.entries);
@@ -56,7 +56,7 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
 
     final prefs = await SharedPreferences.getInstance();
     if (prefs.containsKey(_draftKey)) {
-      // если есть черновик
+      // Загружаем черновик
       final m = jsonDecode(prefs.getString(_draftKey)!) as Map<String, dynamic>;
       _isRest = m['isRest'] as bool;
       _restCtrl.text = m['comment'] as String;
@@ -68,27 +68,17 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
       return;
     }
 
-    // *** ВОССТАНОВЛЕНИЕ ИЗ ПЛАНА ***
+    // Восстановление из плана на текущую неделю
     final now = DateTime.now();
     final monday = DateTime(now.year, now.month, now.day)
         .subtract(Duration(days: now.weekday - 1));
-
-    // 1) создаём или берём план на текущую неделю
-    final weekPlan = await ref
-        .read(weekPlanRepoProvider)
-        .getOrCreateForDate(monday);
+    final weekPlan =
+        await ref.read(weekPlanRepoProvider).getOrCreateForDate(monday);
     final planId = toIntId(weekPlan.id);
-
-    // 2) получаем назначения (assignments) для этого плана
     final assignments =
         await ref.read(weekAssignmentRepoProvider).getByWeekPlan(planId);
-
-    // 3) фильтрация по сегодняшнему дню
     final today = now.weekday;
-    final todays =
-        assignments.where((a) => a.dayOfWeek == today).toList();
-
-    // 4) сами упражнения
+    final todays = assignments.where((a) => a.dayOfWeek == today).toList();
     final exercises = ref.read(exerciseListProvider);
 
     _entries = todays.map((a) {
@@ -136,7 +126,6 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
   }
 
   Future<void> _addEntry() async {
-    // Показываем bottom sheet со списком упражнений
     final sel = await showModalBottomSheet<int>(
       context: context,
       builder: (_) {
@@ -164,23 +153,22 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
 
   @override
   Widget build(BuildContext context) {
+    final exercises = ref.watch(exerciseListProvider);
+
     return Scaffold(
       appBar:
           AppBar(title: Text(_isEditing ? 'Редактировать' : 'Новая тренировка')),
       floatingActionButton: FloatingActionButton(
         child: const Icon(Icons.check),
         onPressed: () async {
-          // сохраняем и локально, и в облаке
           final local = ref.read(sessionRepoProvider);
           final cloud = ref.read(cloudSessionRepoProvider);
-
           final sess = WorkoutSession(
             id: _editing?.id,
             date: DateTime.now(),
             comment: _isRest ? _restCtrl.text : null,
             entries: _entries,
           );
-
           if (_isEditing) {
             await local.update(sess);
             await cloud.update(sess);
@@ -188,40 +176,114 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
             await local.create(sess);
             await cloud.create(sess);
           }
-
-          // удаляем черновик
           SharedPreferences.getInstance().then((p) => p.remove(_draftKey));
-
           Navigator.pop(context);
         },
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            ElevatedButton(
-                onPressed: _addEntry, child: const Text('Добавить запись')),
-            if (_isRest)
-              TextField(
-                controller: _restCtrl,
-                decoration:
-                    const InputDecoration(labelText: 'Комментарий к отдыху'),
-                maxLines: 3,
-                onChanged: (_) => _isRest = true,
-              ),
-            if (!_isRest)
-              Expanded(
-                child: ListView.builder(
-                  itemCount: _entries.length,
-                  itemBuilder: (_, i) => ListTile(
-                    title: Text('Упр. ${_entries[i].exerciseId}'),
-                    subtitle: Text(
-                        'Вес ${_entries[i].weight ?? "-"}  Повт ${_entries[i].reps ?? "-"}'),
+        child: _isRest
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ElevatedButton(
+                    onPressed: _addEntry,
+                    child: const Text('Добавить запись'),
                   ),
-                ),
+                  const SizedBox(height: 20),
+                  TextField(
+                    controller: _restCtrl,
+                    decoration:
+                        const InputDecoration(labelText: 'Комментарий к отдыху'),
+                    maxLines: 3,
+                  ),
+                ],
+              )
+            : ListView.builder(
+                itemCount: _entries.length,
+                itemBuilder: (ctx, i) {
+                  final e = _entries[i];
+                  final ex = exercises.firstWhere(
+                    (x) => x.id == e.exerciseId,
+                    orElse: () => Exercise(id: e.exerciseId, name: 'Неизвестно'),
+                  );
+                  return Card(
+                    margin: const EdgeInsets.symmetric(vertical: 6),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(children: [
+                            Checkbox(
+                              value: e.completed,
+                              onChanged: (v) =>
+                                  setState(() => e.completed = v ?? false),
+                            ),
+                            Text(ex.name, style: const TextStyle(fontSize: 16)),
+                            const Spacer(),
+                            IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              onPressed: () => setState(() {
+                                _entries.removeAt(i);
+                                if (_entries.isEmpty) _isRest = true;
+                              }),
+                            ),
+                          ]),
+                          Row(children: [
+                            const Text('Вес:'),
+                            IconButton(
+                              icon: const Icon(Icons.remove),
+                              onPressed: () =>
+                                  setState(() => e.weight = (e.weight ?? 0) - 0.5),
+                            ),
+                            Text('${e.weight ?? 0}'),
+                            IconButton(
+                              icon: const Icon(Icons.add),
+                              onPressed: () =>
+                                  setState(() => e.weight = (e.weight ?? 0) + 0.5),
+                            ),
+                          ]),
+                          Row(children: [
+                            const Text('Повторы:'),
+                            IconButton(
+                              icon: const Icon(Icons.remove),
+                              onPressed: () =>
+                                  setState(() => e.reps = (e.reps ?? 0) - 1),
+                            ),
+                            Text('${e.reps ?? 0}'),
+                            IconButton(
+                              icon: const Icon(Icons.add),
+                              onPressed: () =>
+                                  setState(() => e.reps = (e.reps ?? 0) + 1),
+                            ),
+                          ]),
+                          Row(children: [
+                            const Text('Подходы:'),
+                            IconButton(
+                              icon: const Icon(Icons.remove),
+                              onPressed: () =>
+                                  setState(() => e.sets = (e.sets ?? 0) - 1),
+                            ),
+                            Text('${e.sets ?? 0}'),
+                            IconButton(
+                              icon: const Icon(Icons.add),
+                              onPressed: () =>
+                                  setState(() => e.sets = (e.sets ?? 0) + 1),
+                            ),
+                          ]),
+                          TextField(
+                            controller: TextEditingController(text: e.comment),
+                            decoration:
+                                const InputDecoration(labelText: 'Комментарий'),
+                            onChanged: (v) => e.comment = v,
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
               ),
-          ],
-        ),
       ),
     );
   }
