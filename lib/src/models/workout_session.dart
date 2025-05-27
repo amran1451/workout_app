@@ -1,46 +1,7 @@
-class SessionEntry {
-  int? id;
-  int exerciseId;
-  bool completed;
-  String? comment;
-  double? weight;
-  int? reps;
-  int? sets;
+import 'session_entry.dart';
 
-  SessionEntry({
-    this.id,
-    required this.exerciseId,
-    this.completed = false,
-    this.comment,
-    this.weight,
-    this.reps,
-    this.sets,
-  });
-
-  factory SessionEntry.fromMap(Map<String, dynamic> map) => SessionEntry(
-        id: map['id'] as int?,
-        exerciseId: map['exercise_id'] as int,
-        completed: map['completed'] == 1,
-        comment: map['comment'] as String?,
-        weight: map['weight'] != null ? map['weight'] as double : null,
-        reps: map['reps'] as int?,
-        sets: map['sets'] as int?,
-      );
-
-  Map<String, dynamic> toMap(int sessionId) => {
-        'id': id,
-        'session_id': sessionId,
-        'exercise_id': exerciseId,
-        'completed': completed ? 1 : 0,
-        'comment': comment,
-        'weight': weight,
-        'reps': reps,
-        'sets': sets,
-      };
-}
-
+/// Сессия тренировки: дата, комментарий и список записей
 class WorkoutSession {
-  /// В Firestore — это ID документа в коллекции sessions
   final String? id;
   final DateTime date;
   final String? comment;
@@ -54,21 +15,21 @@ class WorkoutSession {
   });
 
   factory WorkoutSession.fromMap(
-    Map<String, dynamic> m,
-    List<SessionEntry> entries,
-  ) {
+      Map<String, dynamic> map, List<SessionEntry> entries) {
     return WorkoutSession(
-      id: m['id'] as String?,
-      date: DateTime.parse(m['date'] as String),
-      comment: m['comment'] as String?,
+      id: map['id']?.toString(),
+      date: DateTime.parse(map['date'] as String),
+      comment: map['comment'] as String?,
       entries: entries,
     );
   }
 
+  /// Общая карта: для Firestore и для SQLite таблицы sessions
   Map<String, dynamic> toMap() {
     return {
+      if (id != null) 'id': id,
       'date': date.toIso8601String(),
-      'comment': comment,
+      if (comment != null) 'comment': comment,
     };
   }
 }

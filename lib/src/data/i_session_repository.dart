@@ -1,6 +1,6 @@
 import '../models/workout_session.dart';
 
-/// Интерфейс репозитория тренировочных сессий
+/// Интерфейс репозитория сессий
 abstract class ISessionRepository {
   Future<WorkoutSession> create(WorkoutSession s);
   Future<void> update(WorkoutSession s);
