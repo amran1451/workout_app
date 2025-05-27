@@ -58,12 +58,14 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
 
     final prefs = await SharedPreferences.getInstance();
     if (prefs.containsKey(_draftKey)) {
-      final map = jsonDecode(prefs.getString(_draftKey)!) as Map<String, dynamic>;
+      final map =
+          jsonDecode(prefs.getString(_draftKey)!) as Map<String, dynamic>;
       _isRestDay = map['isRest'] as bool;
       _restController.text = map['restComment'] as String;
       _entries = (map['entries'] as List)
           .cast<Map<String, dynamic>>()
           .map((m) => SessionEntry(
+                id: '',
                 exerciseId: m['exerciseId'] as int,
                 completed: m['completed'] as bool,
                 comment: m['comment'] as String?,
@@ -79,7 +81,8 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
     final now = DateTime.now();
     final monday = DateTime(now.year, now.month, now.day)
         .subtract(Duration(days: now.weekday - 1));
-    final plan = await ref.read(weekPlanRepoProvider).getOrCreateForDate(monday);
+    final plan =
+        await ref.read(weekPlanRepoProvider).getOrCreateForDate(monday);
     final planId = toIntId(plan.id);
     final assignments =
         await ref.read(weekAssignmentRepoProvider).getByWeekPlan(planId);
@@ -92,6 +95,7 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
         orElse: () => Exercise(id: a.exerciseId, name: 'Неизвестно'),
       );
       return SessionEntry(
+        id: '',
         exerciseId: ex.id!,
         completed: false,
         comment: null,
@@ -110,14 +114,16 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
     await prefs.setString(_draftKey, jsonEncode({
       'isRest': _isRestDay,
       'restComment': _restController.text,
-      'entries': _entries.map((e) => {
-            'exerciseId': e.exerciseId,
-            'completed': e.completed,
-            'comment': e.comment,
-            'weight': e.weight,
-            'reps': e.reps,
-            'sets': e.sets,
-          }).toList(),
+      'entries': _entries
+          .map((e) => {
+                'exerciseId': e.exerciseId,
+                'completed': e.completed,
+                'comment': e.comment,
+                'weight': e.weight,
+                'reps': e.reps,
+                'sets': e.sets,
+              })
+          .toList(),
     }));
   }
 
@@ -172,6 +178,7 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
     final ex = exercises.firstWhere((e) => e.id == selected);
     setState(() {
       _entries.add(SessionEntry(
+        id: '',
         exerciseId: ex.id!,
         completed: false,
         comment: null,
@@ -192,8 +199,11 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
       },
       child: Scaffold(
         appBar: AppBar(
-          title: Text(_isEditing ? 'Редактировать тренировку' : 'Новая тренировка'),
-          actions: [IconButton(icon: const Icon(Icons.add), onPressed: _addExercise)],
+          title: Text(
+              _isEditing ? 'Редактировать тренировку' : 'Новая тренировка'),
+          actions: [
+            IconButton(icon: const Icon(Icons.add), onPressed: _addExercise)
+          ],
         ),
         body: Padding(
           padding: const EdgeInsets.all(8),
@@ -201,11 +211,13 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
               ? Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('День отдыха', style: TextStyle(fontSize: 18)),
+                    const Text('День отдыха',
+                        style: TextStyle(fontSize: 18)),
                     const SizedBox(height: 12),
                     TextField(
                       controller: _restController,
-                      decoration: const InputDecoration(labelText: 'Комментарий к дню отдыха'),
+                      decoration: const InputDecoration(
+                          labelText: 'Комментарий к дню отдыха'),
                       maxLines: 5,
                     ),
                   ],
@@ -218,7 +230,8 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
                         .read(exerciseListProvider)
                         .firstWhere(
                           (x) => x.id == e.exerciseId,
-                          orElse: () => Exercise(id: e.exerciseId, name: 'Неизвестно'),
+                          orElse: () =>
+                              Exercise(id: e.exerciseId, name: 'Неизвестно'),
                         );
                     return Card(
                       margin: const EdgeInsets.symmetric(vertical: 4),
@@ -230,12 +243,14 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
                             Row(children: [
                               Checkbox(
                                 value: e.completed,
-                                onChanged: (v) => setState(() => e.completed = v ?? false),
+                                onChanged: (v) =>
+                                    setState(() => e.completed = v ?? false),
                               ),
                               Text(ex.name),
                               const Spacer(),
                               IconButton(
-                                icon: const Icon(Icons.delete_forever, color: Colors.redAccent),
+                                icon: const Icon(Icons.delete_forever,
+                                    color: Colors.redAccent),
                                 onPressed: () => setState(() {
                                   _entries.removeAt(i);
                                   if (_entries.isEmpty) _isRestDay = true;
@@ -246,41 +261,49 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
                               const Text('Вес:'),
                               IconButton(
                                 icon: const Icon(Icons.remove),
-                                onPressed: () => setState(() => e.weight = (e.weight ?? 0) - 0.5),
+                                onPressed: () => setState(
+                                    () => e.weight = (e.weight ?? 0) - 0.5),
                               ),
                               Text('${e.weight ?? 0}'),
                               IconButton(
                                 icon: const Icon(Icons.add),
-                                onPressed: () => setState(() => e.weight = (e.weight ?? 0) + 0.5),
+                                onPressed: () => setState(
+                                    () => e.weight = (e.weight ?? 0) + 0.5),
                               ),
                             ]),
                             Row(children: [
                               const Text('Повторы:'),
                               IconButton(
                                 icon: const Icon(Icons.remove),
-                                onPressed: () => setState(() => e.reps = (e.reps ?? 0) - 1),
+                                onPressed: () =>
+                                    setState(() => e.reps = (e.reps ?? 0) - 1),
                               ),
                               Text('${e.reps ?? 0}'),
                               IconButton(
                                 icon: const Icon(Icons.add),
-                                onPressed: () => setState(() => e.reps = (e.reps ?? 0) + 1),
+                                onPressed: () =>
+                                    setState(() => e.reps = (e.reps ?? 0) + 1),
                               ),
                             ]),
                             Row(children: [
                               const Text('Подходы:'),
                               IconButton(
                                 icon: const Icon(Icons.remove),
-                                onPressed: () => setState(() => e.sets = (e.sets ?? 0) - 1),
+                                onPressed: () =>
+                                    setState(() => e.sets = (e.sets ?? 0) - 1),
                               ),
                               Text('${e.sets ?? 0}'),
                               IconButton(
                                 icon: const Icon(Icons.add),
-                                onPressed: () => setState(() => e.sets = (e.sets ?? 0) + 1),
+                                onPressed: () =>
+                                    setState(() => e.sets = (e.sets ?? 0) + 1),
                               ),
                             ]),
                             TextField(
-                              controller: TextEditingController(text: e.comment),
-                              decoration: const InputDecoration(labelText: 'Комментарий'),
+                              controller:
+                                  TextEditingController(text: e.comment),
+                              decoration: const InputDecoration(
+                                  labelText: 'Комментарий'),
                               onChanged: (v) => e.comment = v,
                             ),
                           ],
