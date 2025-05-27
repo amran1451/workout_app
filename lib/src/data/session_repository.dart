@@ -1,18 +1,17 @@
+// lib/src/data/session_repository.dart
+import 'package:sqflite/sqflite.dart';
 import '../models/workout_session.dart';
-import '../models/workout_session.dart' show SessionEntry;
+import '../models/session_entry.dart';  // <-- импорт модели
 import 'local/db_service.dart';
-import 'i_session_repository.dart';
 
-/// Локальный (sqflite) репозиторий тренировочных сессий
-class SessionRepository implements ISessionRepository {
+class SessionRepository {
   final DatabaseService dbService = DatabaseService.instance;
 
-  @override
   Future<WorkoutSession> create(WorkoutSession session) async {
     final db = await dbService.database;
     final sid = await db.insert('sessions', session.toMap());
     for (var e in session.entries) {
-      await db.insert('entries', e.toMap(sid));
+      await db.insert('entries', e.toDbMap(sid));  // <-- toDbMap
     }
     return WorkoutSession(
       id: sid.toString(),
@@ -22,55 +21,66 @@ class SessionRepository implements ISessionRepository {
     );
   }
 
-  @override
   Future<void> update(WorkoutSession session) async {
     final db = await dbService.database;
+    final id = int.parse(session.id!);
     await db.update(
       'sessions',
       session.toMap(),
       where: 'id = ?',
-      whereArgs: [int.parse(session.id!)],
+      whereArgs: [id],
     );
     await db.delete(
       'entries',
       where: 'session_id = ?',
-      whereArgs: [int.parse(session.id!)],
+      whereArgs: [id],
     );
     for (var e in session.entries) {
-      await db.insert('entries', e.toMap(int.parse(session.id!)));
+      await db.insert('entries', e.toDbMap(id));  // <-- toDbMap
     }
   }
 
-  @override
   Future<List<WorkoutSession>> getAll() async {
     final db = await dbService.database;
-    final maps = await db.query('sessions', orderBy: 'date DESC');
+    final sessionMaps = await db.query('sessions', orderBy: 'date DESC');
     final sessions = <WorkoutSession>[];
-    for (var m in maps) {
+
+    for (var m in sessionMaps) {
+      final idInt = m['id'] as int;
       final entriesMaps = await db.query(
         'entries',
         where: 'session_id = ?',
-        whereArgs: [m['id']],
+        whereArgs: [idInt],
       );
-      final entries =
-          entriesMaps.map((e) => SessionEntry.fromMap(e)).toList();
-      sessions.add(WorkoutSession.fromMap(m, entries));
+      final entries = entriesMaps.map((e) {
+        return SessionEntry.fromMap({
+          'id': e['id'].toString(),
+          'exerciseId': e['exerciseId'],
+          'completed': e['completed'],
+          'comment': e['comment'],
+          'weight': e['weight'],
+          'reps': e['reps'],
+          'sets': e['sets'],
+        });
+      }).toList();
+
+      sessions.add(WorkoutSession.fromMap(
+        {
+          ...m,
+          'id': idInt.toString(),
+        },
+        entries,
+      ));
     }
+
     return sessions;
   }
 
-  @override
   Future<void> deleteSession(String sessionId) async {
     final db = await dbService.database;
-    await db.delete(
-      'entries',
-      where: 'session_id = ?',
-      whereArgs: [int.parse(sessionId)],
-    );
-    await db.delete(
-      'sessions',
-      where: 'id = ?',
-      whereArgs: [int.parse(sessionId)],
-    );
+    final id = int.parse(sessionId);
+    await db.delete('entries',
+        where: 'session_id = ?', whereArgs: [id]);
+    await db.delete('sessions', where: 'id = ?', whereArgs: [id]);
   }
 }
