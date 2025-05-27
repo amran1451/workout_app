@@ -6,7 +6,7 @@ import '../models/exercise.dart';
 import 'repo_providers.dart' show exerciseRepoProvider;
 
 /// Провайдер самого репозитория упражнений
-final exerciseRepoProvider =
+final exerciseRepositoryProvider =
 Provider<ExerciseRepository>((ref) => ExerciseRepository());
 
 /// Провайдер-стейтнотификатор списка упражнений
