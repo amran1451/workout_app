@@ -61,7 +61,7 @@ class SessionRepository {
       );
       final entries = entriesMaps.map((e) {
         return SessionEntry.fromMap({
-          'id': e['id'].toString(),
+          'id': (e['id'] as int).toString(),
           'exerciseId': e['exercise_id'],
           'completed': (e['completed'] as int) == 1,
           'comment': e['comment'] as String?,
@@ -78,7 +78,6 @@ class SessionRepository {
         entries: entries,
       ));
     }
-
     return sessions;
   }
 
@@ -95,7 +94,7 @@ class SessionRepository {
       );
       final entries = entriesMaps.map((e) {
         return SessionEntry.fromMap({
-          'id': e['id'].toString(),
+          'id': (e['id'] as int).toString(),
           'exerciseId': e['exercise_id'],
           'completed': (e['completed'] as int) == 1,
           'comment': e['comment'] as String?,
@@ -130,7 +129,8 @@ class SessionRepository {
     final pending = await getUnsynced();
     for (var s in pending) {
       final cloudS = await cloudRepo.create(s);
-      await markSynced(s.id!, cloudS.id);
+      // здесь — !, потому что cloudS.id гарантированно не null
+      await markSynced(s.id!, cloudS.id!);
     }
   }
 
