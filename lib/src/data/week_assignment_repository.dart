@@ -1,43 +1,35 @@
-// lib/src/data/week_assignment_repository.dart
-
-import 'package:sqflite/sqflite.dart';
-import 'local/db_service.dart';
 import '../models/week_assignment.dart';
+import 'local/db_service.dart';
+import 'i_week_assignment_repository.dart';
 
-class WeekAssignmentRepository {
-  final DatabaseService dbService = DatabaseService.instance;
+class WeekAssignmentRepository implements IWeekAssignmentRepository {
+  final dbService = DatabaseService.instance;
 
-  /// Вернуть все задания для плана с PK = weekPlanId
-  Future<List<WeekAssignment>> getByWeekPlan(int weekPlanId) async {
+  @override
+  Future<List<WeekAssignment>> getByWeekPlan(int planId) async {
     final db = await dbService.database;
     final maps = await db.query(
       'week_assignments',
       where: 'weekPlanId = ?',
-      whereArgs: [weekPlanId],
+      whereArgs: [planId],
     );
     return maps.map((m) => WeekAssignment.fromMap(m)).toList();
   }
 
-  /// Заменить все задания для данного плана
-  Future<void> createAll(
-      int weekPlanId, List<WeekAssignment> list) async {
+  @override
+  Future<void> saveForWeekPlan(
+      int planId, List<WeekAssignment> assignments) async {
     final db = await dbService.database;
-    // Удалить старые
     await db.delete(
       'week_assignments',
       where: 'weekPlanId = ?',
-      whereArgs: [weekPlanId],
+      whereArgs: [planId],
     );
-    // Вставить новые
-    for (var a in list) {
-      await db.insert('week_assignments', {
-        'weekPlanId': weekPlanId,
-        'dayOfWeek': a.dayOfWeek,
-        'exerciseId': a.exerciseId,
-        'defaultWeight': a.defaultWeight,
-        'defaultReps': a.defaultReps,
-        'defaultSets': a.defaultSets,
-      });
+    for (var a in assignments) {
+      final map = a.toMap();
+      map['weekPlanId'] = planId;
+      map.remove('id');
+      await db.insert('week_assignments', map);
     }
   }
 }

@@ -2,14 +2,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/week_plan.dart';
 import 'i_week_plan_repository.dart';
 
-/// Облачный (Firestore) репозиторий недельных планов
 class CloudWeekPlanRepository implements IWeekPlanRepository {
   final CollectionReference<Map<String, dynamic>> _col;
+
   CloudWeekPlanRepository(String uid)
       : _col = FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .collection('week_plans');
+      .collection('users')
+      .doc(uid)
+      .collection('week_plans');
 
   @override
   Future<WeekPlan> getOrCreateForDate(DateTime weekStart) async {

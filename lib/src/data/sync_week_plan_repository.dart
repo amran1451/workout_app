@@ -11,15 +11,16 @@ class SyncWeekPlanRepository implements IWeekPlanRepository {
 
   SyncWeekPlanRepository(this.local, this.cloud, this.connectivity);
 
-  Future<bool> get _hasNetwork async =>
-      (await connectivity.checkConnectivity()) != ConnectivityResult.none;
+  Future<bool> get _hasNetwork async {
+    final res = await connectivity.checkConnectivity();
+    return res != ConnectivityResult.none;
+  }
 
   @override
   Future<WeekPlan> getOrCreateForDate(DateTime weekStart) async {
     final localPlan = await local.getOrCreateForDate(weekStart);
     if (await _hasNetwork) {
       try {
-        // создаём в облаке, но не дублируем, если уже есть
         await cloud.getOrCreateForDate(weekStart);
       } catch (_) {}
     }

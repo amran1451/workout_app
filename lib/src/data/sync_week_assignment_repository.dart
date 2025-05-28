@@ -11,16 +11,17 @@ class SyncWeekAssignmentRepository implements IWeekAssignmentRepository {
 
   SyncWeekAssignmentRepository(this.local, this.cloud, this.connectivity);
 
-  Future<bool> get _hasNetwork async =>
-      (await connectivity.checkConnectivity()) != ConnectivityResult.none;
+  Future<bool> get _hasNetwork async {
+    final res = await connectivity.checkConnectivity();
+    return res != ConnectivityResult.none;
+  }
 
   @override
   Future<List<WeekAssignment>> getByWeekPlan(int planId) =>
       local.getByWeekPlan(planId);
 
   @override
-  Future<void> saveForWeekPlan(
-      int planId, List<WeekAssignment> assignments) async {
+  Future<void> saveForWeekPlan(int planId, List<WeekAssignment> assignments) async {
     await local.saveForWeekPlan(planId, assignments);
     if (await _hasNetwork) {
       try {

@@ -6,7 +6,7 @@ import 'src/routes.dart';// <-- подключаем провайдеры
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform,);
   // анонимная авторизация
   await FirebaseAuth.instance.signInAnonymously();
   runApp(const ProviderScope(child: WorkoutApp()));
