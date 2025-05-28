@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // ← импорт для prefs
 
 import '../../models/week_assignment.dart';
 import '../../models/exercise.dart';
@@ -25,17 +26,16 @@ class _PlanFormPageState extends ConsumerState<PlanFormPage> {
   @override
   void initState() {
     super.initState();
-    // получаем текущий понедельник из провайдера
     _monday = ref.read(currentWeekStartProvider);
     _loadAssignments();
   }
 
   Future<void> _loadAssignments() async {
     setState(() => _loading = true);
-    // обновляем понедельник в провайдере, чтобы другие виджеты знали о смене недели
     ref.read(currentWeekStartProvider.notifier).state = _monday;
 
-    final plan = await ref.read(weekPlanRepoProvider).getOrCreateForDate(_monday);
+    final plan =
+        await ref.read(weekPlanRepoProvider).getOrCreateForDate(_monday);
     final planId = toIntId(plan.id);
     final assignments =
         await ref.read(weekAssignmentRepoProvider).getByWeekPlan(planId);
@@ -76,7 +76,7 @@ class _PlanFormPageState extends ConsumerState<PlanFormPage> {
     setState(() {
       _editable.add(WeekAssignment(
         id: 0,
-        weekPlanId: 0, // будет установлено в createAll
+        weekPlanId: 0,
         exerciseId: ex.id!,
         dayOfWeek: day,
         defaultWeight: ex.weight,
@@ -87,11 +87,16 @@ class _PlanFormPageState extends ConsumerState<PlanFormPage> {
   }
 
   Future<void> _savePlan() async {
-    final plan = await ref.read(weekPlanRepoProvider).getOrCreateForDate(_monday);
+    final plan =
+        await ref.read(weekPlanRepoProvider).getOrCreateForDate(_monday);
     final planId = toIntId(plan.id);
     await ref
         .read(weekAssignmentRepoProvider)
         .createAll(planId, _editable);
+
+    // ← Удаляем старый драфт тренировки, чтобы WorkoutPage загрузил план
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('workout_draft');
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -107,7 +112,6 @@ class _PlanFormPageState extends ConsumerState<PlanFormPage> {
   Widget build(BuildContext context) {
     final exercises = ref.watch(exerciseListProvider);
 
-    // экран загрузки
     if (_loading) {
       return Scaffold(
         appBar: AppBar(title: const Text('План на неделю')),
@@ -115,7 +119,6 @@ class _PlanFormPageState extends ConsumerState<PlanFormPage> {
       );
     }
 
-    // основной экран
     return Scaffold(
       appBar: AppBar(
         title: Column(
@@ -158,7 +161,6 @@ class _PlanFormPageState extends ConsumerState<PlanFormPage> {
               '${DateFormat('dd.MM').format(date)}',
             ),
             children: [
-              // существующие задания
               ...entries.map((a) {
                 final ex = exercises.firstWhere(
                   (e) => e.id == a.exerciseId,
@@ -207,14 +209,13 @@ class _PlanFormPageState extends ConsumerState<PlanFormPage> {
                     ],
                   ),
                   trailing: IconButton(
-                    icon: const Icon(Icons.delete,
-                        color: Colors.redAccent),
+                    icon: const Icon(
+                        Icons.delete, color: Colors.redAccent),
                     onPressed: () => setState(
                         () => _editable.remove(a)),
                   ),
                 );
               }),
-              // кнопка добавить
               ListTile(
                 leading: const Icon(Icons.add),
                 title: const Text('Добавить упражнение'),
