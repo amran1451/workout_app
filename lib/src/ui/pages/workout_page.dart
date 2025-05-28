@@ -41,7 +41,6 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
     if (_inited) return;
     _inited = true;
 
-    // 1) Редактирование
     final args =
         ModalRoute.of(context)?.settings.arguments as WorkoutSession?;
     if (args != null) {
@@ -54,7 +53,6 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
       return;
     }
 
-    // 2) Черновик
     final prefs = await SharedPreferences.getInstance();
     if (prefs.containsKey(_draftKey)) {
       final map =
@@ -69,7 +67,6 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
       return;
     }
 
-    // 3) Из плана на текущую неделю
     final now = DateTime.now();
     final monday = DateTime(now.year, now.month, now.day)
         .subtract(Duration(days: now.weekday - 1));
@@ -161,9 +158,8 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
       },
       child: Scaffold(
         appBar: AppBar(
-          title: Text(
-            _isEditing ? 'Редактировать тренировку' : 'Новая тренировка',
-          ),
+          title:
+              Text(_isEditing ? 'Редактировать тренировку' : 'Новая тренировка'),
         ),
         floatingActionButton: FloatingActionButton(
           onPressed: () async {
@@ -192,14 +188,13 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
               final cloudS = _isEditing
                   ? await cloud.update(sess).then((_) => sess)
                   : await cloud.create(sess);
-              await local.markSynced(sess.id!, cloudS.id!);
+              await local.markSynced(sess.id!, cloudS.id!.toString());
             }
 
             final prefs = await SharedPreferences.getInstance();
             await prefs.remove(_draftKey);
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Сохранено')),
-            );
+            ScaffoldMessenger.of(context)
+                .showSnackBar(const SnackBar(content: Text('Сохранено')));
             Navigator.pop(context);
           },
           child: const Icon(Icons.check),
@@ -210,124 +205,146 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
               ? Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    ElevatedButton(
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.add),
+                      label: const Text('Добавить упражнение'),
                       onPressed: _addEntry,
-                      child: const Text('Добавить запись'),
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: _restCtrl,
                       decoration: const InputDecoration(
-                        labelText: 'Комментарий к отдыху',
-                      ),
+                          labelText: 'Комментарий к отдыху'),
                       maxLines: 3,
                     ),
                   ],
                 )
-              : ListView.builder(
-                  itemCount: _entries.length,
-                  itemBuilder: (ctx, i) {
-                    final e = _entries[i];
-                    final ex = exercises.firstWhere(
-                      (x) => x.id == e.exerciseId,
-                      orElse: () => Exercise(
-                        id: e.exerciseId,
-                        name: 'Неизвестно',
+              : Column(
+                  children: [
+                    // кнопка добавления упражнения при наличии записей
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.add),
+                        label: const Text('Добавить упражнение'),
+                        onPressed: _addEntry,
                       ),
-                    );
-                    return Card(
-                      margin: const EdgeInsets.symmetric(vertical: 6),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Checkbox(
-                                  value: e.completed,
-                                  onChanged: (v) => setState(
-                                    () => e.completed = v ?? false,
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: _entries.length,
+                        itemBuilder: (ctx, i) {
+                          final e = _entries[i];
+                          final ex = exercises.firstWhere(
+                            (x) => x.id == e.exerciseId,
+                            orElse: () =>
+                                Exercise(id: e.exerciseId, name: 'Неизвестно'),
+                          );
+                          return Card(
+                            margin:
+                                const EdgeInsets.symmetric(vertical: 6),
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Column(
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Checkbox(
+                                        value: e.completed,
+                                        onChanged: (v) => setState(
+                                            () => e.completed =
+                                                v ?? false),
+                                      ),
+                                      Text(ex.name,
+                                          style: const TextStyle(
+                                              fontSize: 16)),
+                                      const Spacer(),
+                                      IconButton(
+                                        icon: const Icon(
+                                            Icons.delete,
+                                            color: Colors.red),
+                                        onPressed: () => setState(() {
+                                          _entries.removeAt(i);
+                                          if (_entries.isEmpty)
+                                            _isRest = true;
+                                        }),
+                                      ),
+                                    ],
                                   ),
-                                ),
-                                Text(
-                                  ex.name,
-                                  style: const TextStyle(fontSize: 16),
-                                ),
-                                const Spacer(),
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.delete,
-                                    color: Colors.red,
+                                  Row(
+                                    children: [
+                                      const Text('Вес:'),
+                                      IconButton(
+                                        icon: const Icon(Icons.remove),
+                                        onPressed: () => setState(
+                                            () => e.weight =
+                                                (e.weight ?? 0) -
+                                                0.5),
+                                      ),
+                                      Text('${e.weight ?? 0}'),
+                                      IconButton(
+                                        icon: const Icon(Icons.add),
+                                        onPressed: () => setState(
+                                            () => e.weight =
+                                                (e.weight ?? 0) +
+                                                0.5),
+                                      ),
+                                    ],
                                   ),
-                                  onPressed: () => setState(() {
-                                    _entries.removeAt(i);
-                                    if (_entries.isEmpty) _isRest = true;
-                                  }),
-                                ),
-                              ],
-                            ),
-                            Row(
-                              children: [
-                                const Text('Вес:'),
-                                IconButton(
-                                  icon: const Icon(Icons.remove),
-                                  onPressed: () => setState(() =>
-                                      e.weight = (e.weight ?? 0) - 0.5),
-                                ),
-                                Text('${e.weight ?? 0}'),
-                                IconButton(
-                                  icon: const Icon(Icons.add),
-                                  onPressed: () => setState(() =>
-                                      e.weight = (e.weight ?? 0) + 0.5),
-                                ),
-                              ],
-                            ),
-                            Row(
-                              children: [
-                                const Text('Повторы:'),
-                                IconButton(
-                                  icon: const Icon(Icons.remove),
-                                  onPressed: () => setState(
-                                      () => e.reps = (e.reps ?? 0) - 1),
-                                ),
-                                Text('${e.reps ?? 0}'),
-                                IconButton(
-                                  icon: const Icon(Icons.add),
-                                  onPressed: () => setState(
-                                      () => e.reps = (e.reps ?? 0) + 1),
-                                ),
-                              ],
-                            ),
-                            Row(
-                              children: [
-                                const Text('Подходы:'),
-                                IconButton(
-                                  icon: const Icon(Icons.remove),
-                                  onPressed: () => setState(
-                                      () => e.sets = (e.sets ?? 0) - 1),
-                                ),
-                                Text('${e.sets ?? 0}'),
-                                IconButton(
-                                  icon: const Icon(Icons.add),
-                                  onPressed: () => setState(
-                                      () => e.sets = (e.sets ?? 0) + 1),
-                                ),
-                              ],
-                            ),
-                            TextField(
-                              controller:
-                                  TextEditingController(text: e.comment),
-                              decoration: const InputDecoration(
-                                labelText: 'Комментарий',
+                                  Row(
+                                    children: [
+                                      const Text('Повторы:'),
+                                      IconButton(
+                                        icon: const Icon(Icons.remove),
+                                        onPressed: () => setState(
+                                            () => e.reps =
+                                                (e.reps ?? 0) - 1),
+                                      ),
+                                      Text('${e.reps ?? 0}'),
+                                      IconButton(
+                                        icon: const Icon(Icons.add),
+                                        onPressed: () => setState(
+                                            () => e.reps =
+                                                (e.reps ?? 0) + 1),
+                                      ),
+                                    ],
+                                  ),
+                                  Row(
+                                    children: [
+                                      const Text('Подходы:'),
+                                      IconButton(
+                                        icon: const Icon(Icons.remove),
+                                        onPressed: () => setState(
+                                            () => e.sets =
+                                                (e.sets ?? 0) - 1),
+                                      ),
+                                      Text('${e.sets ?? 0}'),
+                                      IconButton(
+                                        icon: const Icon(Icons.add),
+                                        onPressed: () => setState(
+                                            () => e.sets =
+                                                (e.sets ?? 0) + 1),
+                                      ),
+                                    ],
+                                  ),
+                                  TextField(
+                                    controller: TextEditingController(
+                                        text: e.comment),
+                                    decoration: const InputDecoration(
+                                        labelText: 'Комментарий'),
+                                    onChanged: (v) => e.comment = v,
+                                  ),
+                                ],
                               ),
-                              onChanged: (v) => e.comment = v,
                             ),
-                          ],
-                        ),
+                          );
+                        },
                       ),
-                    );
-                  },
+                    ),
+                  ],
                 ),
         ),
       ),
