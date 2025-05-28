@@ -1,5 +1,5 @@
 // lib/src/ui/pages/sessions_page.dart
-// (Без изменений, теперь deleteSession принимает String и всё компилируется)
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -35,11 +35,19 @@ class _SessionsPageState extends ConsumerState<SessionsPage> {
 
   Future<void> _filterRange(DateTimeRange range) async {
     final sessions = await ref.read(sessionRepoProvider).getAll();
+
+    // приводим start/end к дате без времени
+    final start = DateTime(range.start.year, range.start.month, range.start.day);
+    final end = DateTime(range.end.year, range.end.month, range.end.day);
+
+    final filtered = sessions.where((s) {
+      final d = DateTime(s.date.year, s.date.month, s.date.day);
+      return !d.isBefore(start) && !d.isAfter(end);
+    }).toList();
+
     setState(() {
       _selectedRange = range;
-      _filtered = sessions
-          .where((s) => !s.date.isBefore(range.start) && !s.date.isAfter(range.end))
-          .toList();
+      _filtered = filtered;
     });
   }
 
@@ -66,7 +74,9 @@ class _SessionsPageState extends ConsumerState<SessionsPage> {
     final dayNameFormat = DateFormat('EEEE', 'ru');
     final exercises = ref.read(exerciseListProvider);
 
-    for (var date = start; !date.isAfter(end); date = date.add(const Duration(days: 1))) {
+    for (var date = start;
+        !date.isAfter(end);
+        date = date.add(const Duration(days: 1))) {
       final raw = dayNameFormat.format(date);
       final dayName = raw[0].toUpperCase() + raw.substring(1);
       final session = _filtered.firstWhere(
@@ -85,7 +95,8 @@ class _SessionsPageState extends ConsumerState<SessionsPage> {
                   orElse: () => Exercise(id: e.exerciseId, name: 'Неизвестно'))
               .name;
           final weightStr = e.weight != null ? ' ${e.weight} кг' : '';
-          final repsSets = (e.reps != null && e.sets != null) ? ' ${e.reps}×${e.sets}' : '';
+          final repsSets =
+              (e.reps != null && e.sets != null) ? ' ${e.reps}×${e.sets}' : '';
           final commentStr = e.comment != null ? ' ${e.comment}' : '';
           sb.writeln('$exName$weightStr$repsSets сделал,$commentStr');
         }
@@ -136,7 +147,9 @@ class _SessionsPageState extends ConsumerState<SessionsPage> {
                       initialDateRange: _selectedRange,
                       locale: const Locale('ru'),
                     );
-                    if (range != null) await _filterRange(range);
+                    if (range != null) {
+                      await _filterRange(range);
+                    }
                   },
                   child: const Text('Выбрать период'),
                 ),
@@ -150,14 +163,19 @@ class _SessionsPageState extends ConsumerState<SessionsPage> {
           ),
           Expanded(
             child: _filtered.isEmpty
-                ? const Center(child: Text('Нет тренировок за выбранный период'))
+                ? const Center(
+                    child: Text('Нет тренировок за выбранный период'),
+                  )
                 : ListView.builder(
                     itemCount: _filtered.length,
                     itemBuilder: (ctx, i) {
                       final s = _filtered[i];
-                      final dateStr = DateFormat('yyyy-MM-dd').format(s.date);
+                      final dateStr =
+                          DateFormat('yyyy-MM-dd').format(s.date);
                       final subtitle = s.entries.isEmpty
-                          ? (s.comment != null ? 'Отдых (${s.comment})' : 'Отдых')
+                          ? (s.comment != null
+                              ? 'Отдых (${s.comment})'
+                              : 'Отдых')
                           : '${s.entries.length} упражнений';
                       return ListTile(
                         title: Text('Тренировка: $dateStr'),
@@ -169,14 +187,23 @@ class _SessionsPageState extends ConsumerState<SessionsPage> {
                             arguments: s,
                           );
                           await _loadSessions();
-                          if (_selectedRange != null) await _filterRange(_selectedRange!);
+                          if (_selectedRange != null) {
+                            await _filterRange(_selectedRange!);
+                          }
                         },
                         trailing: IconButton(
-                          icon: const Icon(Icons.delete_forever, color: Colors.redAccent),
+                          icon: const Icon(
+                            Icons.delete_forever,
+                            color: Colors.redAccent,
+                          ),
                           onPressed: () async {
-                            await ref.read(sessionRepoProvider).deleteSession(s.id!);
+                            await ref
+                                .read(sessionRepoProvider)
+                                .deleteSession(s.id!);
                             await _loadSessions();
-                            if (_selectedRange != null) await _filterRange(_selectedRange!);
+                            if (_selectedRange != null) {
+                              await _filterRange(_selectedRange!);
+                            }
                           },
                         ),
                       );
