@@ -122,26 +122,37 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
   }
 
   Future<void> _addEntry() async {
+    final exercises = ref.read(exerciseListProvider);
     final sel = await showModalBottomSheet<int>(
       context: context,
-      builder: (_) {
-        final list = ref.watch(exerciseListProvider);
-        return ListView.separated(
+      builder: (_) => SafeArea(
+        child: ListView.separated(
           separatorBuilder: (_, __) => const Divider(),
-          itemCount: list.length,
-          itemBuilder: (c, i) => ListTile(
-            title: Text(list[i].name),
-            onTap: () => Navigator.pop(c, list[i].id!),
-          ),
-        );
-      },
+          itemCount: exercises.length,
+          itemBuilder: (c, i) {
+            final e = exercises[i];
+            return ListTile(
+              title: Text(e.name),
+              onTap: () => Navigator.pop(c, e.id),
+            );
+          },
+        ),
+      ),
     );
     if (sel == null) return;
+
+    // Найти объект Exercise по id, чтобы взять дефолтные значения
+    final ex = exercises.firstWhere((e) => e.id == sel);
+
     setState(() {
       _entries.add(SessionEntry(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
-        exerciseId: sel,
+        exerciseId: ex.id!,
         completed: false,
+        weight: ex.weight,
+        reps: ex.reps,
+        sets: ex.sets,
+        comment: null,
       ));
       _isRest = false;
     });
@@ -158,8 +169,9 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
       },
       child: Scaffold(
         appBar: AppBar(
-          title:
-              Text(_isEditing ? 'Редактировать тренировку' : 'Новая тренировка'),
+          title: Text(
+            _isEditing ? 'Редактировать тренировку' : 'Новая тренировка',
+          ),
         ),
         floatingActionButton: FloatingActionButton(
           onPressed: () async {
@@ -188,13 +200,14 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
               final cloudS = _isEditing
                   ? await cloud.update(sess).then((_) => sess)
                   : await cloud.create(sess);
-              await local.markSynced(sess.id!, cloudS.id!.toString());
+              await local.markSynced(
+                  sess.id!, cloudS.id!.toString());
             }
 
             final prefs = await SharedPreferences.getInstance();
             await prefs.remove(_draftKey);
-            ScaffoldMessenger.of(context)
-                .showSnackBar(const SnackBar(content: Text('Сохранено')));
+            ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Сохранено')));
             Navigator.pop(context);
           },
           child: const Icon(Icons.check),
@@ -221,7 +234,6 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
                 )
               : Column(
                   children: [
-                    // кнопка добавления упражнения при наличии записей
                     Align(
                       alignment: Alignment.centerRight,
                       child: ElevatedButton.icon(
@@ -238,8 +250,8 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
                           final e = _entries[i];
                           final ex = exercises.firstWhere(
                             (x) => x.id == e.exerciseId,
-                            orElse: () =>
-                                Exercise(id: e.exerciseId, name: 'Неизвестно'),
+                            orElse: () => Exercise(
+                                id: e.exerciseId, name: 'Неизвестно'),
                           );
                           return Card(
                             margin:
@@ -331,8 +343,9 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
                                     ],
                                   ),
                                   TextField(
-                                    controller: TextEditingController(
-                                        text: e.comment),
+                                    controller:
+                                        TextEditingController(
+                                            text: e.comment),
                                     decoration: const InputDecoration(
                                         labelText: 'Комментарий'),
                                     onChanged: (v) => e.comment = v,
