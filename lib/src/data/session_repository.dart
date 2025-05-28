@@ -1,5 +1,5 @@
 import 'package:sqflite/sqflite.dart';
-import '../local/db_service.dart';
+import 'local/db_service.dart';
 import '../models/workout_session.dart';
 import '../models/session_entry.dart';
 import 'cloud_session_repository.dart';
