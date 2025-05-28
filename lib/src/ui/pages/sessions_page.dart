@@ -25,8 +25,23 @@ class _SessionsPageState extends ConsumerState<SessionsPage> {
   @override
   void initState() {
     super.initState();
-    _loadSessions();
+    WidgetsBinding.instance.addObserver(this);
+    _syncAndLoad();
   }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+       _syncAndLoad();
+    }
+  }
+  
+  Future<void> _syncAndLoad() async {
+    final local = ref.read(sessionRepoProvider);
+    final cloud = ref.read(cloudSessionRepoProvider);
+    await local.syncPending(cloud);
+    await _loadSessions();
+  }  
 
   Future<void> _loadSessions() async {
     final sessions = await ref.read(sessionRepoProvider).getAll();
