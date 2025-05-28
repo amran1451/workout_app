@@ -1,5 +1,3 @@
-// lib/src/providers/repo_providers.dart
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -22,43 +20,45 @@ import '../data/week_assignment_repository.dart';
 import '../data/cloud_week_assignment_repository.dart';
 import '../data/sync_week_assignment_repository.dart';
 
+import 'connectivity_provider.dart';
 import 'local_provider.dart';
 
-/// Провайдер текущего UID пользователя Firebase
+/// 1) UID текущего пользователя
 final userUidProvider = Provider<String>((_) {
-  final user = FirebaseAuth.instance.currentUser;
-  if (user == null) throw StateError('User is not signed in');
-  return user.uid;
+  final u = FirebaseAuth.instance.currentUser;
+  if (u == null) throw StateError('User not signed in');
+  return u.uid;
 });
 
-/// Репозиторий упражнений — локальный
-final exerciseRepoProvider = Provider<IExerciseRepository>((ref) {
+/// 2) Репозиторий упражнений (только локальный)
+final exerciseRepoProvider = Provider<IExerciseRepository>((_) {
   return ExerciseRepository();
 });
 
-/// Репозиторий тренировочных сессий — локальный + облако
+/// 3) Репозиторий сессий (локально + облако)
 final sessionRepoProvider = Provider<ISessionRepository>((ref) {
-  final uid = ref.watch(userUidProvider);
+  final uid = ref.read(userUidProvider);
   final local = SessionRepository();
   final cloud = CloudSessionRepository(uid);
-  final conn = ref.watch(connectivityProvider);
+  final conn = ref.read(connectivityProvider);
   return SyncSessionRepository(local, cloud, conn);
 });
 
-/// Репозиторий недельных планов — локальный + облако
+/// 4) Репозиторий планов недели (локально + облако)
 final weekPlanRepoProvider = Provider<IWeekPlanRepository>((ref) {
-  final uid = ref.watch(userUidProvider);
+  final uid = ref.read(userUidProvider);
   final local = WeekPlanRepository(ref.read(databaseServiceProvider));
   final cloud = CloudWeekPlanRepository(uid);
-  final conn = ref.watch(connectivityProvider);
+  final conn = ref.read(connectivityProvider);
   return SyncWeekPlanRepository(local, cloud, conn);
 });
 
-/// Репозиторий заданий в недельном плане — локальный + облако
-final weekAssignmentRepoProvider = Provider<IWeekAssignmentRepository>((ref) {
-  final uid = ref.watch(userUidProvider);
+/// 5) Репозиторий заданий недели (локально + облако)
+final weekAssignmentRepoProvider =
+    Provider<IWeekAssignmentRepository>((ref) {
+  final uid = ref.read(userUidProvider);
   final local = WeekAssignmentRepository(ref.read(databaseServiceProvider));
   final cloud = CloudWeekAssignmentRepository(uid);
-  final conn = ref.watch(connectivityProvider);
+  final conn = ref.read(connectivityProvider);
   return SyncWeekAssignmentRepository(local, cloud, conn);
 });

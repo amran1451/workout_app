@@ -4,7 +4,6 @@ import 'week_assignment_repository.dart';
 import 'cloud_week_assignment_repository.dart';
 import '../models/week_assignment.dart';
 
-/// Репозиторий «локально + облако» для заданий в недельном плане
 class SyncWeekAssignmentRepository implements IWeekAssignmentRepository {
   final WeekAssignmentRepository local;
   final CloudWeekAssignmentRepository cloud;
@@ -12,10 +11,8 @@ class SyncWeekAssignmentRepository implements IWeekAssignmentRepository {
 
   SyncWeekAssignmentRepository(this.local, this.cloud, this.connectivity);
 
-  Future<bool> get _hasNetwork async {
-    final res = await connectivity.checkConnectivity();
-    return res != ConnectivityResult.none;
-  }
+  Future<bool> get _hasNetwork async =>
+      (await connectivity.checkConnectivity()) != ConnectivityResult.none;
 
   @override
   Future<List<WeekAssignment>> getByWeekPlan(int planId) =>
