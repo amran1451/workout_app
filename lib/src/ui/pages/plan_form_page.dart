@@ -92,7 +92,7 @@ class _PlanFormPageState extends ConsumerState<PlanFormPage> {
     final planId = toIntId(plan.id);
     await ref
         .read(weekAssignmentRepoProvider)
-        .createAll(planId, _editable);
+        .saveForWeekPlan(planId, _editable);
 
     // ← Удаляем старый драфт тренировки, чтобы WorkoutPage загрузил план
     final prefs = await SharedPreferences.getInstance();
