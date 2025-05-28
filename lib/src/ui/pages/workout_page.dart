@@ -1,7 +1,7 @@
-// lib/src/ui/pages/workout_page.dart
-
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -9,13 +9,14 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/session_entry.dart';
 import '../../models/workout_session.dart';
 import '../../models/exercise.dart';
-import '../../providers/week_providers.dart';
+import '../../providers/app_providers.dart';
 import '../../providers/exercise_provider.dart';
-import '../../providers/session_provider.dart';
+import '../../providers/week_providers.dart';
 import '../../utils/id_utils.dart';
 
 class WorkoutPage extends ConsumerStatefulWidget {
   const WorkoutPage({Key? key}) : super(key: key);
+
   @override
   ConsumerState<WorkoutPage> createState() => _WorkoutPageState();
 }
@@ -23,7 +24,7 @@ class WorkoutPage extends ConsumerStatefulWidget {
 class _WorkoutPageState extends ConsumerState<WorkoutPage>
     with WidgetsBindingObserver {
   static const _draftKey = 'workout_draft';
-  final TextEditingController _restCtrl = TextEditingController();
+  final _restCtrl = TextEditingController();
   bool _isEditing = false;
   WorkoutSession? _editing;
   List<SessionEntry> _entries = [];
@@ -37,12 +38,23 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
     Future.microtask(_initialize);
   }
 
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _restCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) _saveDraft();
+  }
+
   Future<void> _initialize() async {
     if (_inited) return;
     _inited = true;
 
-    final args =
-        ModalRoute.of(context)?.settings.arguments as WorkoutSession?;
+    final args = ModalRoute.of(context)?.settings.arguments as WorkoutSession?;
     if (args != null) {
       _isEditing = true;
       _editing = args;
@@ -55,13 +67,12 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
 
     final prefs = await SharedPreferences.getInstance();
     if (prefs.containsKey(_draftKey)) {
-      final map =
-          jsonDecode(prefs.getString(_draftKey)!) as Map<String, dynamic>;
+      final map = jsonDecode(prefs.getString(_draftKey)!) as Map<String, dynamic>;
       _isRest = map['isRest'] as bool;
       _restCtrl.text = map['comment'] as String;
       _entries = (map['entries'] as List)
           .cast<Map<String, dynamic>>()
-          .map((e) => SessionEntry.fromMap(e))
+          .map(SessionEntry.fromMap)
           .toList();
       setState(() {});
       return;
@@ -75,15 +86,11 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
     final planId = toIntId(weekPlan.id);
     final assignments =
         await ref.read(weekAssignmentRepoProvider).getByWeekPlan(planId);
-    final today = now.weekday;
-    final todays = assignments.where((a) => a.dayOfWeek == today).toList();
+    final todays = assignments.where((a) => a.dayOfWeek == now.weekday);
     final exercises = ref.read(exerciseListProvider);
 
     _entries = todays.map((a) {
-      final ex = exercises.firstWhere(
-        (e) => e.id == a.exerciseId,
-        orElse: () => Exercise(id: a.exerciseId, name: 'Неизвестно'),
-      );
+      final ex = exercises.firstWhere((e) => e.id == a.exerciseId);
       return SessionEntry(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         exerciseId: ex.id!,
@@ -109,41 +116,25 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
     }));
   }
 
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused) _saveDraft();
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _restCtrl.dispose();
-    super.dispose();
-  }
-
   Future<void> _addEntry() async {
-    final exercises = ref.read(exerciseListProvider);
     final sel = await showModalBottomSheet<int>(
       context: context,
-      builder: (_) => SafeArea(
-        child: ListView.separated(
-          separatorBuilder: (_, __) => const Divider(),
-          itemCount: exercises.length,
-          itemBuilder: (c, i) {
-            final e = exercises[i];
-            return ListTile(
-              title: Text(e.name),
-              onTap: () => Navigator.pop(c, e.id),
-            );
-          },
-        ),
-      ),
+      builder: (_) {
+        final list = ref.watch(exerciseListProvider);
+        return SafeArea(
+          child: ListView.separated(
+            separatorBuilder: (_, __) => const Divider(),
+            itemCount: list.length,
+            itemBuilder: (c, i) => ListTile(
+              title: Text(list[i].name),
+              onTap: () => Navigator.pop(c, list[i].id),
+            ),
+          ),
+        );
+      },
     );
     if (sel == null) return;
-
-    // Найти объект Exercise по id, чтобы взять дефолтные значения
-    final ex = exercises.firstWhere((e) => e.id == sel);
-
+    final ex = ref.read(exerciseListProvider).firstWhere((e) => e.id == sel);
     setState(() {
       _entries.add(SessionEntry(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -169,15 +160,13 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
       },
       child: Scaffold(
         appBar: AppBar(
-          title: Text(
-            _isEditing ? 'Редактировать тренировку' : 'Новая тренировка',
-          ),
+          title:
+              Text(_isEditing ? 'Редактировать тренировку' : 'Новая тренировка'),
         ),
         floatingActionButton: FloatingActionButton(
           onPressed: () async {
             final local = ref.read(sessionRepoProvider);
             WorkoutSession sess;
-
             if (_isEditing) {
               sess = WorkoutSession(
                 id: _editing!.id,
@@ -193,7 +182,6 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
                 entries: _entries,
               ));
             }
-
             final user = FirebaseAuth.instance.currentUser;
             if (user != null) {
               final cloud = ref.read(cloudSessionRepoProvider);
@@ -201,13 +189,13 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
                   ? await cloud.update(sess).then((_) => sess)
                   : await cloud.create(sess);
               await local.markSynced(
-                  sess.id!, cloudS.id!.toString());
+                int.parse(sess.id!),
+                cloudS.id!,
+              );
             }
-
-            final prefs = await SharedPreferences.getInstance();
-            await prefs.remove(_draftKey);
-            ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Сохранено')));
+            await SharedPreferences.getInstance().then((p) => p.remove(_draftKey));
+            ScaffoldMessenger.of(context)
+                .showSnackBar(const SnackBar(content: Text('Сохранено')));
             Navigator.pop(context);
           },
           child: const Icon(Icons.check),
@@ -226,8 +214,8 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
                     const SizedBox(height: 12),
                     TextField(
                       controller: _restCtrl,
-                      decoration: const InputDecoration(
-                          labelText: 'Комментарий к отдыху'),
+                      decoration:
+                          const InputDecoration(labelText: 'Комментарий к отдыху'),
                       maxLines: 3,
                     ),
                   ],
@@ -248,104 +236,76 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
                         itemCount: _entries.length,
                         itemBuilder: (ctx, i) {
                           final e = _entries[i];
-                          final ex = exercises.firstWhere(
-                            (x) => x.id == e.exerciseId,
-                            orElse: () => Exercise(
-                                id: e.exerciseId, name: 'Неизвестно'),
-                          );
+                          final ex = exercises.firstWhere((x) => x.id == e.exerciseId);
                           return Card(
-                            margin:
-                                const EdgeInsets.symmetric(vertical: 6),
+                            margin: const EdgeInsets.symmetric(vertical: 6),
                             child: Padding(
                               padding: const EdgeInsets.all(12),
                               child: Column(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.start,
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Row(
-                                    children: [
-                                      Checkbox(
-                                        value: e.completed,
-                                        onChanged: (v) => setState(
-                                            () => e.completed =
-                                                v ?? false),
-                                      ),
-                                      Text(ex.name,
-                                          style: const TextStyle(
-                                              fontSize: 16)),
-                                      const Spacer(),
-                                      IconButton(
-                                        icon: const Icon(
-                                            Icons.delete,
-                                            color: Colors.red),
-                                        onPressed: () => setState(() {
-                                          _entries.removeAt(i);
-                                          if (_entries.isEmpty)
-                                            _isRest = true;
-                                        }),
-                                      ),
-                                    ],
-                                  ),
-                                  Row(
-                                    children: [
-                                      const Text('Вес:'),
-                                      IconButton(
-                                        icon: const Icon(Icons.remove),
-                                        onPressed: () => setState(
-                                            () => e.weight =
-                                                (e.weight ?? 0) -
-                                                0.5),
-                                      ),
-                                      Text('${e.weight ?? 0}'),
-                                      IconButton(
-                                        icon: const Icon(Icons.add),
-                                        onPressed: () => setState(
-                                            () => e.weight =
-                                                (e.weight ?? 0) +
-                                                0.5),
-                                      ),
-                                    ],
-                                  ),
-                                  Row(
-                                    children: [
-                                      const Text('Повторы:'),
-                                      IconButton(
-                                        icon: const Icon(Icons.remove),
-                                        onPressed: () => setState(
-                                            () => e.reps =
-                                                (e.reps ?? 0) - 1),
-                                      ),
-                                      Text('${e.reps ?? 0}'),
-                                      IconButton(
-                                        icon: const Icon(Icons.add),
-                                        onPressed: () => setState(
-                                            () => e.reps =
-                                                (e.reps ?? 0) + 1),
-                                      ),
-                                    ],
-                                  ),
-                                  Row(
-                                    children: [
-                                      const Text('Подходы:'),
-                                      IconButton(
-                                        icon: const Icon(Icons.remove),
-                                        onPressed: () => setState(
-                                            () => e.sets =
-                                                (e.sets ?? 0) - 1),
-                                      ),
-                                      Text('${e.sets ?? 0}'),
-                                      IconButton(
-                                        icon: const Icon(Icons.add),
-                                        onPressed: () => setState(
-                                            () => e.sets =
-                                                (e.sets ?? 0) + 1),
-                                      ),
-                                    ],
-                                  ),
+                                  Row(children: [
+                                    Checkbox(
+                                      value: e.completed,
+                                      onChanged: (v) =>
+                                          setState(() => e.completed = v ?? false),
+                                    ),
+                                    Text(ex.name,
+                                        style: const TextStyle(fontSize: 16)),
+                                    const Spacer(),
+                                    IconButton(
+                                      icon: const Icon(Icons.delete, color: Colors.red),
+                                      onPressed: () => setState(() {
+                                        _entries.removeAt(i);
+                                        if (_entries.isEmpty) _isRest = true;
+                                      }),
+                                    ),
+                                  ]),
+                                  Row(children: [
+                                    const Text('Вес:'),
+                                    IconButton(
+                                      icon: const Icon(Icons.remove),
+                                      onPressed: () => setState(
+                                          () => e.weight = (e.weight ?? 0) - 0.5),
+                                    ),
+                                    Text('${e.weight ?? 0}'),
+                                    IconButton(
+                                      icon: const Icon(Icons.add),
+                                      onPressed: () => setState(
+                                          () => e.weight = (e.weight ?? 0) + 0.5),
+                                    ),
+                                  ]),
+                                  Row(children: [
+                                    const Text('Повторы:'),
+                                    IconButton(
+                                      icon: const Icon(Icons.remove),
+                                      onPressed: () =>
+                                          setState(() => e.reps = (e.reps ?? 0) - 1),
+                                    ),
+                                    Text('${e.reps ?? 0}'),
+                                    IconButton(
+                                      icon: const Icon(Icons.add),
+                                      onPressed: () =>
+                                          setState(() => e.reps = (e.reps ?? 0) + 1),
+                                    ),
+                                  ]),
+                                  Row(children: [
+                                    const Text('Подходы:'),
+                                    IconButton(
+                                      icon: const Icon(Icons.remove),
+                                      onPressed: () =>
+                                          setState(() => e.sets = (e.sets ?? 0) - 1),
+                                    ),
+                                    Text('${e.sets ?? 0}'),
+                                    IconButton(
+                                      icon: const Icon(Icons.add),
+                                      onPressed: () =>
+                                          setState(() => e.sets = (e.sets ?? 0) + 1),
+                                    ),
+                                  ]),
                                   TextField(
                                     controller:
-                                        TextEditingController(
-                                            text: e.comment),
+                                        TextEditingController(text: e.comment),
                                     decoration: const InputDecoration(
                                         labelText: 'Комментарий'),
                                     onChanged: (v) => e.comment = v,
