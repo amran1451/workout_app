@@ -2,18 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'src/routes.dart';
 import 'firebase_options.dart';// <-- подключаем провайдеры
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform,);
-  try {
-    await FirebaseAuth.instance.signInAnonymously();
-    print("Анонимная авторизация выполнена");
-  } catch (e, s) {
-    print("Ошибка авторизации: $e\n$s");
-  }
+  await initializeDateFormatting('ru', null);
   // анонимная авторизация
   await FirebaseAuth.instance.signInAnonymously();
   runApp(const ProviderScope(child: WorkoutApp()));
