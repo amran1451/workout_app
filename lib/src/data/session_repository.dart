@@ -112,6 +112,30 @@ class SessionRepository {
     return db.delete('sessions', where: 'id = ?', whereArgs: [sessionId]);
   }
 
+  /// Получить последнюю запись по упражнению
+  Future<SessionEntry?> getLastEntryForExercise(int exerciseId) async {
+    final db = await dbService.database;
+    final rows = await db.rawQuery('''
+      SELECT e.id, e.exercise_id, e.completed, e.comment, e.weight, e.reps, e.sets
+      FROM entries e
+      JOIN sessions s ON e.session_id = s.id
+      WHERE e.exercise_id = ?
+      ORDER BY s.date DESC
+      LIMIT 1
+    ''', [exerciseId]);
+    if (rows.isEmpty) return null;
+    final r = rows.first;
+    return SessionEntry.fromMap({
+      'id': (r['id'] as int).toString(),
+      'exerciseId': r['exercise_id'],
+      'completed': (r['completed'] as int) == 1,
+      'comment': r['comment'],
+      'weight': (r['weight'] as num?)?.toDouble(),
+      'reps': r['reps'],
+      'sets': r['sets'],
+    });
+  }
+
   /// Синхронизация — получить все несинхронизированные
   Future<List<WorkoutSession>> getUnsynced() async {
     final db = await dbService.database;

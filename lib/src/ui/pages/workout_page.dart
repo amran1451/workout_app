@@ -89,18 +89,22 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
     final todays = assignments.where((a) => a.dayOfWeek == now.weekday);
     final exercises = ref.read(exerciseListProvider);
 
-    _entries = todays.map((a) {
+    _entries = [];
+    for (final a in todays) {
       final ex = exercises.firstWhere((e) => e.id == a.exerciseId);
-      return SessionEntry(
+      final last = await ref
+          .read(sessionRepoProvider)
+          .getLastEntryForExercise(ex.id!);
+      _entries.add(SessionEntry(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         exerciseId: ex.id!,
         completed: false,
-        weight: a.defaultWeight ?? ex.weight,
-        reps: a.defaultReps ?? ex.reps,
-        sets: a.defaultSets ?? ex.sets,
+        weight: a.defaultWeight ?? last?.weight ?? ex.weight,
+        reps: a.defaultReps ?? last?.reps ?? ex.reps,
+        sets: a.defaultSets ?? last?.sets ?? ex.sets,
         comment: null,
-      );
-    }).toList();
+      ));
+    }
 
     _isRest = _entries.isEmpty;
     setState(() {});
@@ -135,14 +139,17 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
     );
     if (sel == null) return;
     final ex = ref.read(exerciseListProvider).firstWhere((e) => e.id == sel);
+    final last = await ref
+        .read(sessionRepoProvider)
+        .getLastEntryForExercise(ex.id!);
     setState(() {
       _entries.add(SessionEntry(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         exerciseId: ex.id!,
         completed: false,
-        weight: ex.weight,
-        reps: ex.reps,
-        sets: ex.sets,
+        weight: last?.weight ?? ex.weight,
+        reps: last?.reps ?? ex.reps,
+        sets: last?.sets ?? ex.sets,
         comment: null,
       ));
       _isRest = false;
