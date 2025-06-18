@@ -5,6 +5,9 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
+
+import '../../../firebase_options.dart';
 
 import '../../models/session_entry.dart';
 import '../../models/workout_session.dart';
@@ -30,6 +33,14 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
   List<SessionEntry> _entries = [];
   bool _isRest = true;
   bool _inited = false;
+
+  Future<void> _ensureFirebase() async {
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    }
+  }
 
   @override
   void initState() {
@@ -189,6 +200,7 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
                 entries: _entries,
               ));
             }
+            await _ensureFirebase();
             final user = FirebaseAuth.instance.currentUser;
             if (user != null) {
               final cloud = ref.read(cloudSessionRepoProvider);
