@@ -22,6 +22,18 @@ dependencies:
   firebase_auth: ^4.15.3
   connectivity_plus: ^6.1.4
 
+  digital_diary_app:
+    path: ../digital_diary_app
+
+  nutrition_tracker:
+    path: ../nutrition_tracker
+
+  finance_tracker:
+    path: ../finance_tracker
+
+  planner_app:
+    path: ../planner_app
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

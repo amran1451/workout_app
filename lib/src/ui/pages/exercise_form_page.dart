@@ -3,6 +3,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
+
+import '../../../firebase_options.dart';
 
 import '../../models/exercise.dart';
 import '../../data/exercise_repository.dart';
@@ -136,6 +139,11 @@ class _ExerciseFormPageState extends ConsumerState<ExerciseFormPage> {
                   }
 
                   // 2) пуш в облако
+                  if (Firebase.apps.isEmpty) {
+                    await Firebase.initializeApp(
+                      options: DefaultFirebaseOptions.currentPlatform,
+                    );
+                  }
                   final user = FirebaseAuth.instance.currentUser;
                   if (user != null) {
                     final cloud = ref.read(cloudExerciseRepoProvider);

@@ -5,6 +5,9 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
+
+import '../../../firebase_options.dart';
 
 import '../../models/session_entry.dart';
 import '../../models/workout_session.dart';
@@ -30,6 +33,14 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
   List<SessionEntry> _entries = [];
   bool _isRest = true;
   bool _inited = false;
+
+  Future<void> _ensureFirebase() async {
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    }
+  }
 
   @override
   void initState() {
@@ -89,18 +100,22 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
     final todays = assignments.where((a) => a.dayOfWeek == now.weekday);
     final exercises = ref.read(exerciseListProvider);
 
-    _entries = todays.map((a) {
+    _entries = [];
+    for (final a in todays) {
       final ex = exercises.firstWhere((e) => e.id == a.exerciseId);
-      return SessionEntry(
+      final last = await ref
+          .read(sessionRepoProvider)
+          .getLastEntryForExercise(ex.id!);
+      _entries.add(SessionEntry(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         exerciseId: ex.id!,
         completed: false,
-        weight: a.defaultWeight ?? ex.weight,
-        reps: a.defaultReps ?? ex.reps,
-        sets: a.defaultSets ?? ex.sets,
+        weight: a.defaultWeight ?? last?.weight ?? ex.weight,
+        reps: a.defaultReps ?? last?.reps ?? ex.reps,
+        sets: a.defaultSets ?? last?.sets ?? ex.sets,
         comment: null,
-      );
-    }).toList();
+      ));
+    }
 
     _isRest = _entries.isEmpty;
     setState(() {});
@@ -135,14 +150,17 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
     );
     if (sel == null) return;
     final ex = ref.read(exerciseListProvider).firstWhere((e) => e.id == sel);
+    final last = await ref
+        .read(sessionRepoProvider)
+        .getLastEntryForExercise(ex.id!);
     setState(() {
       _entries.add(SessionEntry(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         exerciseId: ex.id!,
         completed: false,
-        weight: ex.weight,
-        reps: ex.reps,
-        sets: ex.sets,
+        weight: last?.weight ?? ex.weight,
+        reps: last?.reps ?? ex.reps,
+        sets: last?.sets ?? ex.sets,
         comment: null,
       ));
       _isRest = false;
@@ -182,6 +200,7 @@ class _WorkoutPageState extends ConsumerState<WorkoutPage>
                 entries: _entries,
               ));
             }
+            await _ensureFirebase();
             final user = FirebaseAuth.instance.currentUser;
             if (user != null) {
               final cloud = ref.read(cloudSessionRepoProvider);
